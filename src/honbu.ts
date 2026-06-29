@@ -133,12 +133,14 @@ async function gatherShareTypes(env: Env, acc: string): Promise<ShareType[]> {
 
 // 1会員ぶんを本部へ送る。送れた型数を返す。authTok＝会員ごとトークン（無ければ共通HONBU_TOKEN）。email＝周知メール宛先。
 export async function pushAccount(env: Env, acc: string, label: string | null, authTok?: string, email?: string | null): Promise<number> {
-  if (!env.HONBU_URL || !env.HONBU_TOKEN) return 0;
+  if (!env.HONBU_URL) return 0;
+  const tok = authTok || env.HONBU_TOKEN; // 会員ごとトークン優先。公開会員はこちら（HONBU_TOKEN無し）。
+  if (!tok) return 0; // 認証手段なし（会員トークン未取得＋共有トークンなし）→送れない
   const types = await gatherShareTypes(env, acc);
   if (!types.length) return 0;
   const res = await fetch(`${env.HONBU_URL}/hq/ingest`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${authTok || env.HONBU_TOKEN}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
     body: JSON.stringify({ member_id: acc, label, email: email ?? undefined, types }),
   });
   if (!res.ok) throw new Error(`HQ ingest ${res.status}`);
@@ -147,9 +149,11 @@ export async function pushAccount(env: Env, acc: string, label: string | null, a
 
 // 本部の「効く型ライブラリ（昇格）」を取得し、ローカルキャッシュを総入れ替え。
 export async function pullLibrary(env: Env, authTok?: string): Promise<number> {
-  if (!env.HONBU_URL || !env.HONBU_TOKEN) return 0;
+  if (!env.HONBU_URL) return 0;
+  const tok = authTok || env.HONBU_TOKEN;
+  if (!tok) return 0;
   const res = await fetch(`${env.HONBU_URL}/hq/library?status=listed`, {
-    headers: { Authorization: `Bearer ${authTok || env.HONBU_TOKEN}` },
+    headers: { Authorization: `Bearer ${tok}` },
   });
   if (!res.ok) throw new Error(`HQ library ${res.status}`);
   const data = (await res.json()) as {
@@ -172,9 +176,11 @@ export async function pullLibrary(env: Env, authTok?: string): Promise<number> {
 
 // 本部からのお知らせ（周知）を取得してローカルにキャッシュ（総入れ替え）。
 export async function pullBroadcasts(env: Env, authTok?: string): Promise<number> {
-  if (!env.HONBU_URL || !env.HONBU_TOKEN) return 0;
+  if (!env.HONBU_URL) return 0;
+  const tok = authTok || env.HONBU_TOKEN;
+  if (!tok) return 0;
   const res = await fetch(`${env.HONBU_URL}/hq/broadcasts`, {
-    headers: { Authorization: `Bearer ${authTok || env.HONBU_TOKEN}` },
+    headers: { Authorization: `Bearer ${tok}` },
   });
   if (!res.ok) throw new Error(`HQ broadcasts ${res.status}`);
   const data = (await res.json()) as { broadcasts?: Array<{ id: number; title: string; body: string; created_at?: string }> };
@@ -192,7 +198,7 @@ export async function pullBroadcasts(env: Env, authTok?: string): Promise<number
 
 // 全会員を本部へpush → ライブラリ＆お知らせをpull。日次cronと手動エンドポイントから呼ぶ。
 export async function syncHonbu(env: Env): Promise<{ pushed_accounts: number; pushed_types: number; library: number; broadcasts: number }> {
-  if (!env.HONBU_URL || !env.HONBU_TOKEN) return { pushed_accounts: 0, pushed_types: 0, library: 0, broadcasts: 0 };
+  if (!env.HONBU_URL) return { pushed_accounts: 0, pushed_types: 0, library: 0, broadcasts: 0 };
   // この会員(=worker)の永続ユニークID。本部にはこのIDで登録・連携する（1 worker = 1 member）。
   const memberUid = await getMemberUid(env);
   let label: string | null = null;
@@ -204,6 +210,7 @@ export async function syncHonbu(env: Env): Promise<{ pushed_accounts: number; pu
   // 会員ごとトークンを確保（初回は /hq/register で発行）。失敗時は共通HONBU_TOKENにフォールバック。
   const memberToken = await ensureHonbuToken(env, memberUid, label, memberEmail);
   const authTok = memberToken || env.HONBU_TOKEN;
+  if (!authTok) return { pushed_accounts: 0, pushed_types: 0, library: 0, broadcasts: 0 }; // 認証手段なし（招待未登録＋共有トークンなし）→同期不可
 
   let accounts: Array<{ id: string; handle: string | null }> = [];
   try {
