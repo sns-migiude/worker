@@ -1,0 +1,14 @@
+# 会員が入力するシークレット（Deploy to Cloudflare のセットアップ画面で入力 / または `wrangler secret put`）。
+# このファイル自体は値を含めない雛形。実値はコミットしない（.gitignore で .dev.vars / .env を除外）。
+
+# ダッシュボードの合言葉（自分で決める・推測されにくい文字列）
+API_TOKEN="set-a-strong-password"
+
+# Claude APIキー（会員所有）。投稿生成・画像カード要約に使う
+ANTHROPIC_API_KEY="sk-ant-..."
+
+# D1に保存するX鍵の暗号化に使う鍵素材（自分で決める・推測されにくい文字列）。未設定なら API_TOKEN で代用
+CREDS_KEY="set-a-random-string"
+
+# 注意：X(Twitter)のAPIキーはここには入れない。
+#   デプロイ後、ダッシュボードの「アカウント設定」から連携（D1に暗号化保存）する。

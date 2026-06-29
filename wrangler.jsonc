@@ -1,0 +1,46 @@
+// 【公開リポ用 wrangler 雛形】Deploy to Cloudflare ボタンで会員が自分のCloudflareに構築するための設定。
+//   ・運営(wasa)の本番 wrangler.jsonc とは別物。公開リポではこれを wrangler.jsonc にリネームして使う。
+//   ・D1/R2 は database_id/bucket を持たない＝ボタンが会員アカウントに新規作成して自動バインドする。
+//   ・プロンプト本体は持たない（実行時に本部Hubから取得）。HONBU_TOKEN(共有秘密)は不要＝登録は招待コード認証。
+//   ・PUBLIC_URL は置かない＝会員ごとのWorker URLをリクエストから自動取得する。
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sns-migiude",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "observability": { "enabled": true },
+
+  // 1分おき起動（予約は not_before のゆらぎで管理。投稿が無い分はDB1クエリで即終了）。
+  "triggers": { "crons": ["* * * * *"] },
+
+  // D1（個人データ）。database_id は付けない＝Deployボタンが会員アカウントに新規作成。
+  "d1_databases": [
+    { "binding": "DB", "database_name": "sns-migiude" }
+  ],
+  // 画像カードのレンダ素材（resvg wasm/フォント/背景/ロゴ）。同上で自動作成。
+  "r2_buckets": [
+    { "binding": "MEDIA", "bucket_name": "sns-migiude-media" }
+  ],
+  // D1マイグレーション（デプロイ時に適用）。migrations/0001_init.sql を含める。
+  "migrations_dir": "migrations",
+
+  "vars": {
+    "POST_SLOTS_JST": "06:30,11:30,17:00,21:00",
+    "METRICS_SLOT_JST": "05:00",
+    "METRICS_WINDOW_DAYS": "14",
+    "GEN_MODEL": "claude-opus-4-8",
+    "CYCLE_START_JST": "06:00",
+    "ENV_LABEL": "",
+    "POST_ENABLED": "1",
+    // 本部(HQ)の本番URL＝独自ドメイン。登録は招待コード認証なので共有トークンは不要。
+    "HONBU_URL": "https://hq.sns-migiude.com"
+    // PUBLIC_URL は置かない（会員ごとに固有＝リクエストから自動取得して記憶）
+  }
+
+  // 会員が入力するシークレット（Deployボタンのセットアップ画面 or `wrangler secret put`）:
+  //   API_TOKEN         … ダッシュボードの合言葉（会員が決める）
+  //   ANTHROPIC_API_KEY … Claude APIキー（会員所有）
+  //   CREDS_KEY         … D1のX鍵暗号化用の鍵素材（会員が決める。未設定ならAPI_TOKENで代用）
+  // ※ X(Twitter)のAPIキーは、デプロイ後にダッシュボードの「アカウント設定」から連携（ここでは不要）
+}

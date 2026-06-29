@@ -1,0 +1,21 @@
+{
+  "name": "sns-migiude-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SNSの右腕 会員Worker。あなたのCloudflareで動く、あなた自身の文体のままのX発信『右腕』。",
+  "scripts": {
+    "dev": "wrangler dev",
+    "check": "tsc --noEmit",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "db:init": "wrangler d1 execute sns-migiude --remote --file=migrations/0001_init.sql"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260601.0",
+    "typescript": "^5.8.0",
+    "wrangler": "^4.99.0"
+  },
+  "dependencies": {
+    "@resvg/resvg-wasm": "^2.6.2"
+  }
+}

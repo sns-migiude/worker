@@ -1,0 +1,13 @@
+# シークレットは絶対にコミットしない（実値は .dev.vars / wrangler secret put に置く）
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.env
+.env.*
+
+# 依存・ビルド・ローカル状態
+node_modules/
+.wrangler/
+dist/
+*.log
+.DS_Store
