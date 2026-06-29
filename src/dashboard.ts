@@ -839,7 +839,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     h+="・<b>集めないもの</b>：APIキー／未公開のネタ・下書き／フォロワーの個人情報。<br>";
     h+="・<b>過去投稿の学習（バックフィル）は任意</b>です（あとから設定でON/OFFできます）。<br>";
     h+="・退会してもあなたのデータは失われません。削除のお求め・投稿の削除にも追従します。<br>";
-    h+="<span style='opacity:.8'>※ 正式な利用規約・プライバシー方針の文面は別途ご案内します。</span></div>";
+    h+="<span style='opacity:.8'>詳しくは <a href='https://join.sns-migiude.com/terms' target='_blank' rel='noopener' style='text-decoration:underline'>利用規約</a> と <a href='https://join.sns-migiude.com/privacy' target='_blank' rel='noopener' style='text-decoration:underline'>プライバシーポリシー</a> をご確認ください。</span></div>";
     h+="<label style='display:flex;gap:8px;align-items:flex-start;margin-top:10px;cursor:pointer'><input type='checkbox' id='gConsent' style='margin-top:4px'><span>上記の<b>利用のお約束（利用規約・プライバシー方針）に同意</b>します。</span></label>";
     h+="<div class='row' style='margin-top:10px'><button class='primary' onclick='licenseSubmit()'>同意して始める</button></div></div>";
     $("tbody").innerHTML=h;
