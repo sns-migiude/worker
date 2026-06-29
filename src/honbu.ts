@@ -147,6 +147,51 @@ export async function pushAccount(env: Env, acc: string, label: string | null, a
   return types.length;
 }
 
+// 投稿レコード（運営分析用）を集める。送るのは「公開投稿のID・型ラベル・数値メトリクス・形式/画像/リンクのフラグ」だけ。
+// 本文(body)・リプ(reply_text)は送らない（URLは本部側で handle+id から組み立て・公開ポストに飛べる）。
+async function gatherSharePosts(env: Env, acc: string): Promise<Array<Record<string, unknown>>> {
+  try {
+    const r = await env.DB.prepare(
+      `SELECT p.platform_post_id AS pid, p.hook AS hook, p.posted_at AS posted_at, p.chars AS chars,
+              CASE WHEN p.reply_platform_post_id IS NOT NULL THEN 1 ELSE 0 END AS is_thread,
+              CASE WHEN p.link_code IS NOT NULL AND p.link_code <> '' THEN 1 ELSE 0 END AS has_link,
+              m.impressions AS impressions, m.likes AS likes, m.reposts AS reposts, m.replies AS replies,
+              m.quotes AS quotes, m.bookmarks AS bookmarks, m.url_link_clicks AS link_clicks,
+              m.profile_clicks AS profile_clicks, m.er_raw AS er_raw
+         FROM posts p JOIN post_metrics m ON m.post_id = p.id
+        WHERE p.account_id = ? AND p.status = 'posted' AND p.platform_post_id IS NOT NULL
+          AND p.posted_at IS NOT NULL AND p.deleted_at IS NULL
+          AND m.fetched_at = (SELECT MAX(m2.fetched_at) FROM post_metrics m2 WHERE m2.post_id = p.id)
+          AND p.posted_at >= datetime('now','-120 days')
+        ORDER BY p.posted_at DESC LIMIT 500`
+    ).bind(acc).all<Record<string, unknown>>();
+    return (r.results ?? []).map((x) => {
+      const hook = (x.hook as string) || "";
+      const pat = hook.split("##")[1] || "";
+      const hasImage = /^img_/.test(pat) ? 1 : 0; // 画像付きパターン
+      return { ...x, has_image: hasImage };
+    });
+  } catch {
+    return [];
+  }
+}
+
+// 投稿レコードを本部へ送る（運営分析用・会員には再配布しない）。送れた件数を返す。
+export async function pushPosts(env: Env, acc: string, handle: string | null, authTok?: string): Promise<number> {
+  if (!env.HONBU_URL) return 0;
+  const tok = authTok || env.HONBU_TOKEN;
+  if (!tok) return 0;
+  const posts = await gatherSharePosts(env, acc);
+  if (!posts.length) return 0;
+  const res = await fetch(`${env.HONBU_URL}/hq/posts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+    body: JSON.stringify({ member_id: acc, handle: handle ? handle.replace(/^@/, "") : null, posts }),
+  });
+  if (!res.ok) throw new Error(`HQ posts ${res.status}`);
+  return posts.length;
+}
+
 // 本部の「効く型ライブラリ（昇格）」を取得し、ローカルキャッシュを総入れ替え。
 export async function pullLibrary(env: Env, authTok?: string): Promise<number> {
   if (!env.HONBU_URL) return 0;
@@ -197,8 +242,8 @@ export async function pullBroadcasts(env: Env, authTok?: string): Promise<number
 }
 
 // 全会員を本部へpush → ライブラリ＆お知らせをpull。日次cronと手動エンドポイントから呼ぶ。
-export async function syncHonbu(env: Env): Promise<{ pushed_accounts: number; pushed_types: number; library: number; broadcasts: number }> {
-  if (!env.HONBU_URL) return { pushed_accounts: 0, pushed_types: 0, library: 0, broadcasts: 0 };
+export async function syncHonbu(env: Env): Promise<{ pushed_accounts: number; pushed_types: number; pushed_posts: number; library: number; broadcasts: number }> {
+  if (!env.HONBU_URL) return { pushed_accounts: 0, pushed_types: 0, pushed_posts: 0, library: 0, broadcasts: 0 };
   // この会員(=worker)の永続ユニークID。本部にはこのIDで登録・連携する（1 worker = 1 member）。
   const memberUid = await getMemberUid(env);
   let label: string | null = null;
@@ -210,7 +255,7 @@ export async function syncHonbu(env: Env): Promise<{ pushed_accounts: number; pu
   // 会員ごとトークンを確保（初回は /hq/register で発行）。失敗時は共通HONBU_TOKENにフォールバック。
   const memberToken = await ensureHonbuToken(env, memberUid, label, memberEmail);
   const authTok = memberToken || env.HONBU_TOKEN;
-  if (!authTok) return { pushed_accounts: 0, pushed_types: 0, library: 0, broadcasts: 0 }; // 認証手段なし（招待未登録＋共有トークンなし）→同期不可
+  if (!authTok) return { pushed_accounts: 0, pushed_types: 0, pushed_posts: 0, library: 0, broadcasts: 0 }; // 認証手段なし（招待未登録＋共有トークンなし）→同期不可
 
   let accounts: Array<{ id: string; handle: string | null }> = [];
   try {
@@ -221,6 +266,7 @@ export async function syncHonbu(env: Env): Promise<{ pushed_accounts: number; pu
   }
   let pushedAccounts = 0;
   let pushedTypes = 0;
+  let pushedPosts = 0;
   for (const a of accounts) {
     try {
       // per-memberトークンがある場合、本部はトークンからmember_idを確定する（body.member_idは無視）。
@@ -231,6 +277,12 @@ export async function syncHonbu(env: Env): Promise<{ pushed_accounts: number; pu
       }
     } catch (e) {
       console.error(`HQ push失敗 ${a.id}: ${e instanceof Error ? e.message : e}`);
+    }
+    try {
+      // 投稿レコード（運営分析用・本文は送らない）。失敗しても型pushは活かす。
+      pushedPosts += await pushPosts(env, a.id, a.handle ?? label, authTok);
+    } catch (e) {
+      console.error(`HQ posts push失敗 ${a.id}: ${e instanceof Error ? e.message : e}`);
     }
   }
   let library = 0;
@@ -245,5 +297,5 @@ export async function syncHonbu(env: Env): Promise<{ pushed_accounts: number; pu
   } catch (e) {
     console.error(`HQ broadcasts取得失敗: ${e instanceof Error ? e.message : e}`);
   }
-  return { pushed_accounts: pushedAccounts, pushed_types: pushedTypes, library, broadcasts };
+  return { pushed_accounts: pushedAccounts, pushed_types: pushedTypes, pushed_posts: pushedPosts, library, broadcasts };
 }
