@@ -33,7 +33,7 @@ import { callClaude, verifyClaudeKey } from "./claude";
 import { HELP_SPEC, HELP_RULES } from "./help";
 import { generateDrafts } from "./generate";
 import { logClaudeUsage } from "./usage";
-import { syncHonbu, registerWithHonbu } from "./honbu";
+import { syncHonbu, pullFromHonbu, registerWithHonbu } from "./honbu";
 import { getPromptPack, refreshPrompts, hydrateFromCache } from "./prompts";
 import { TYPE_INSTRUCTIONS, CATALOG, CATALOG_KEYS, DEFAULT_ON, DEFAULT_ON_FREE, isLongType, PATTERNS, metaOf, URL_TYPE_INSTRUCTION, URL_STYLES, resolveImageType } from "./taxonomy";
 
@@ -2637,6 +2637,8 @@ export default {
       String(jst.getUTCMinutes()).padStart(2, "0");
     const metricsSlot = (env.METRICS_SLOT_JST ?? "05:00").trim();
     const cycleStart = (env.CYCLE_START_JST ?? "06:00").trim();
+    // 受信専用同期の時刻（既定17:00 JST）。""にすると無効。フル同期(05:00)とは別枠で、効く型/お知らせの反映だけ早める。
+    const pullSlot = (env.HONBU_PULL_SLOT_JST ?? "17:00").trim();
 
     // 毎回：期限が来た予約（not_before<=now）を各アカウント1本ずつ投稿（ゆらぎを尊重）
     await postSlotAllAccounts(env);
@@ -2653,6 +2655,14 @@ export default {
         await syncHonbu(env);
       } catch (e) {
         console.error(`本部同期失敗: ${e instanceof Error ? e.message : e}`);
+      }
+    } else if (pullSlot && hhmm === pullSlot) {
+      // 受信専用同期：本部から効く型ライブラリ＋お知らせだけを取得（push・メトリクス取得なし＝X/Claude API不使用・無料）。
+      try {
+        const r = await pullFromHonbu(env);
+        console.log(`本部 受信専用同期: 効く型${r.library}件・お知らせ${r.broadcasts}件を取得`);
+      } catch (e) {
+        console.error(`本部 受信専用同期 失敗: ${e instanceof Error ? e.message : e}`);
       }
     }
     if (hhmm === cycleStart) {

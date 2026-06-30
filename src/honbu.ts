@@ -299,3 +299,32 @@ export async function syncHonbu(env: Env): Promise<{ pushed_accounts: number; pu
   }
   return { pushed_accounts: pushedAccounts, pushed_types: pushedTypes, pushed_posts: pushedPosts, library, broadcasts };
 }
+
+// 受信専用同期：本部から「効く型ライブラリ」と「お知らせ」だけを取得する（push・メトリクス取得なし）。
+// X/Claude APIを一切使わない＝無料。日次のフル同期(syncHonbu)と別の時刻に走らせ、集合知/お知らせのアプリ内反映を早める用途。
+export async function pullFromHonbu(env: Env): Promise<{ library: number; broadcasts: number }> {
+  if (!env.HONBU_URL) return { library: 0, broadcasts: 0 };
+  const memberUid = await getMemberUid(env);
+  let label: string | null = null;
+  try {
+    const r = await env.DB.prepare(`SELECT handle FROM accounts WHERE id = ?`).bind(memberUid).first<{ handle: string | null }>();
+    label = r?.handle ?? null;
+  } catch { /* handle不明でも続行 */ }
+  const memberEmail = await getConfig(env, "member_email");
+  const memberToken = await ensureHonbuToken(env, memberUid, label, memberEmail);
+  const authTok = memberToken || env.HONBU_TOKEN;
+  if (!authTok) return { library: 0, broadcasts: 0 }; // 認証手段なし → 受信不可
+  let library = 0;
+  try {
+    library = await pullLibrary(env, authTok);
+  } catch (e) {
+    console.error(`HQ pull(受信専用)失敗: ${e instanceof Error ? e.message : e}`);
+  }
+  let broadcasts = 0;
+  try {
+    broadcasts = await pullBroadcasts(env, authTok);
+  } catch (e) {
+    console.error(`HQ broadcasts取得(受信専用)失敗: ${e instanceof Error ? e.message : e}`);
+  }
+  return { library, broadcasts };
+}

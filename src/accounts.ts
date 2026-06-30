@@ -19,6 +19,7 @@ export interface Env {
   METRICS_SLOT_JST: string;
   METRICS_WINDOW_DAYS: string;
   CYCLE_START_JST?: string;
+  HONBU_PULL_SLOT_JST?: string; // 受信専用同期の時刻（既定17:00 JST・""で無効）。効く型/お知らせの反映を早める無料の追加pull
   ENV_LABEL?: string; // 環境表示（本番は空・devは「開発環境」）
   POST_ENABLED?: string; // "0" なら実際の投稿をしない（開発環境の安全装置）
   HONBU_URL?: string; // 本部(HQ)のベースURL。未設定なら集合知連携はスキップ
