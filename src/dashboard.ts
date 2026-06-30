@@ -1724,8 +1724,34 @@ export const DASHBOARD_HTML = `<!doctype html>
   }
   // ── 型の管理（採用ON/OFF ＋ 優先度。採用は常に10種以上）──
   var TM_CUSTOM=[], TM_STD=[], TM_ACTIVE=0, TM_AUTO_DEMOTE=false, TM_UNADOPTED=[];
+  // 集合知での自分の型の評価（フライホイール）。型の管理の上部に表示。
+  var TM_MINE=null;
+  function loadMyTypes(){ if(TM_MINE){ renderMyTypes(); return; } api("GET","/api/hq/my-types").then(function(r){ TM_MINE=((r.body||{}).types)||[]; renderMyTypes(); }); }
+  function renderMyTypes(){
+    var el=$("tmMine"); if(!el||!TM_MINE) return;
+    var shared=TM_MINE.filter(function(t){ return t.shared===1||t.shared==='1'; });
+    if(!shared.length){ el.innerHTML=""; return; }
+    var inLib=shared.filter(function(t){ return t.lib_status; });
+    var promoted=inLib.filter(function(t){ return t.lib_status==='promoted'; }).length;
+    var people=0; inLib.forEach(function(t){ people+=(t.lib_members||0); });
+    var h="<div class='card' style='background:var(--accent-bg);border-color:#b5d4f4'><b>🌐 みんなの中での評価（集合知）</b>";
+    h+="<div class='note' style='margin:4px 0 8px;color:var(--text)'>あなたが共有した型が、ほかの発信者にどれだけ効いているか。"+(promoted?"<b>⭐ 昇格 "+promoted+"種</b>・":"")+"のべ <b>"+people+"人</b>に効いています。共有を続けるほど、みんなの集合知が強くなります。</div>";
+    if(!inLib.length){ h+="<div class='note'>まだ評価が貯まっていません（みんなの実績が集まると、ここに表示されます）。</div>"; }
+    else {
+      h+="<table class='usage' style='margin-top:4px'><tr><td class='note'>型</td><td class='c note'>状態</td><td class='c note'>効いている人</td><td class='c note'>平常比</td></tr>";
+      inLib.forEach(function(t){
+        var pct=(t.lib_score!=null)?Math.round((t.lib_score-1)*100):null;
+        var st=t.lib_status==='promoted'?"<b style='color:var(--ok)'>⭐ 昇格</b>":(t.lib_status==='retired'?"<span class='note'>休止</span>":"候補");
+        h+="<tr><td><b>"+esc(t.name||t.type_key)+"</b></td><td class='c'>"+st+"</td><td class='c'>"+(t.lib_members||0)+"人</td><td class='c'>"+(pct!=null?((pct>=0?'+':'')+pct+'%'):'-')+"</td></tr>";
+      });
+      h+="</table>";
+    }
+    h+="</div>";
+    el.innerHTML=h;
+  }
   function loadTypeManage(){
     var el=$("tmBody"); if(el) el.innerHTML="<div class='spin'></div>";
+    TM_MINE=null;
     api("GET","/api/types/portfolio?account="+ACC).then(function(r){
       var b=r.body||{}; TM_CUSTOM=b.custom||[]; TM_STD=b.standard||[]; TM_ACTIVE=b.active||0; TM_AUTO_DEMOTE=!!b.auto_demote; TM_UNADOPTED=b.auto_unadopted||[]; renderTypeManage();
     });
@@ -1749,6 +1775,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   function renderTypeManage(){
     var el=$("tmBody"); if(!el) return; var h="";
     h+="<div class='card' style='background:var(--accent-bg);border-color:#b5d4f4'><b>採用中：<span id='tmActive'>"+TM_ACTIVE+"</span> 種類</b> <span class='note'>（最低10種は必ず残します。OFFにできない＝それ以上は減らせません。控えめでも完全には止めず、AIが“当たり型”を探す幅を確保）</span></div>";
+    h+="<div id='tmMine'></div>";
     // スコアが低い型を自動で不採用にするトグル。
     h+="<div class='card'><div class='row' style='justify-content:space-between;align-items:center;gap:10px'><div style='min-width:0'><b>スコアが低い型を自動で不採用にする</b><div class='note' style='margin-top:2px'>ONにすると、十分にデータがたまった型のうち<b>平常比が低いもの</b>をサイクルで自動的に不採用にします（最低10種は必ず残す／手動で戻した型は再び外しません）。外した型は下の「不採用リスト」に残ります。</div></div><label class='switch' title='ONで自動不採用'><input type='checkbox' "+(TM_AUTO_DEMOTE?'checked':'')+" onchange='tmAutoDemote(this.checked)'><span class='slider'></span></label></div></div>";
     h+="<div class='card'><h3 style='margin-top:0'>あなたの型（"+TM_CUSTOM.length+"）</h3>";
@@ -1775,6 +1802,7 @@ export const DASHBOARD_HTML = `<!doctype html>
       h+="</div>";
     }
     el.innerHTML=h;
+    loadMyTypes();
   }
   function tmToggle(key,on){
     api("POST","/api/account/type-onoff",{account:ACC,key:key,on:on}).then(function(r){

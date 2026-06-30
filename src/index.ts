@@ -66,7 +66,7 @@ import { DASHBOARD_HTML } from "./dashboard";
 
 // ── このワーカーのコード版（2桁小数・0.01刻み 例 1.00→1.01→…→1.99→2.00）。本部の latest_code_version と数値で比べて「更新あり」を出す。 ──
 // リリース手順：公開リポ更新時にここを +0.01（大きい更新は +1.00 等）→ 本部コンソールで「最新版」を同じ数字に。
-const CODE_VERSION = "1.03";
+const CODE_VERSION = "1.04";
 
 const MAX_RETRY = 3;
 const USDJPY_FALLBACK = 155; // 取得できないときの概算レート
@@ -2373,6 +2373,20 @@ export default {
       }
       const items = (lib.results ?? []).map((x) => ({ ...x, mine: mine.has(x.name) }));
       return json({ ok: true, library: items });
+    }
+    // 自分が共有した型が「みんなの中でどう効いているか」を本部から取得（中継）。会員の貢献の見える化。
+    if (req.method === "GET" && url.pathname === "/api/hq/my-types") {
+      if (!env.HONBU_URL) return json({ ok: true, types: [] });
+      const tok = (await getConfig(env, "honbu_token")) || env.HONBU_TOKEN || null;
+      if (!tok) return json({ ok: true, types: [] });
+      try {
+        const r = await fetch(`${env.HONBU_URL}/hq/my-types`, { headers: { Authorization: `Bearer ${tok}` } });
+        if (!r.ok) return json({ ok: true, types: [] });
+        const d = (await r.json()) as { types?: unknown[] };
+        return json({ ok: true, types: d.types ?? [] });
+      } catch {
+        return json({ ok: true, types: [] });
+      }
     }
     // 本部からのお知らせ（ローカルキャッシュ）。ダッシュボードで表示。
     if (req.method === "GET" && url.pathname === "/api/hq/announcements") {
