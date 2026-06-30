@@ -200,6 +200,7 @@ export const DASHBOARD_HTML = `<!doctype html>
       <button class="soft" onclick="logout()">ログアウト</button>
     </div>
     <div class="body">
+      <div id="updBanner" style="display:none;background:#fef3c7;border:1px solid #f6c453;color:#4a3206;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px"></div>
       <div id="msg" class="msg"></div>
 
       <section id="s-home" class="screen">
@@ -782,7 +783,7 @@ export const DASHBOARD_HTML = `<!doctype html>
       <div style="margin-top:28px;padding-top:14px;border-top:1px solid var(--border);font-size:12px;text-align:center;opacity:.7">
         <a href="https://join.sns-migiude.com/terms" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">利用規約</a>
         ・ <a href="https://join.sns-migiude.com/privacy" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">プライバシーポリシー</a>
-        ／ SNSの右腕
+        ／ SNSの右腕 <span id="verLabel"></span>
       </div>
     </div>
   </div>
@@ -871,11 +872,23 @@ export const DASHBOARD_HTML = `<!doctype html>
     api("GET","/api/whoami").then(function(w){
       if (w.status===401){ authFail(); return; }
       if (w.body && w.body.account_id){ ACC = w.body.account_id; }
+      if (w.body){ applyVersion(w.body); }
       api("GET","/api/account/state?account="+ACC).then(function(r){
         if (r.status===401){ authFail(); return; }
         route(r.body||{});
       });
     });
+  }
+  // バージョン表記＋「アップデートがあります」バナー（本部の最新版と比較）。
+  function applyVersion(w){
+    var v=$("verLabel"); if(v) v.textContent="v"+(w.version!=null?w.version:"?");
+    var b=$("updBanner"); if(!b) return;
+    if(w.update_available){
+      var note=w.update_note?("："+w.update_note):"";
+      var url=w.update_url||"https://join.sns-migiude.com/update";
+      b.innerHTML="<i class='ti ti-rocket'></i> 新しいバージョン <b>v"+w.latest_version+"</b> があります"+esc(note)+" <a href='"+esc(url)+"' target='_blank' rel='noopener' style='color:#4a3206;text-decoration:underline;font-weight:600;margin-left:6px'>更新方法を見る →</a>";
+      b.style.display="block";
+    } else { b.style.display="none"; }
   }
   function route(s){
     // 起動時に解放・Premium状態をグローバルに反映（型の開発／型の検索でも長文・URLパターンの出し分けに使う）。

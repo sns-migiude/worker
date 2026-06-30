@@ -64,6 +64,10 @@ import { distillCardText } from "./generate";
 import { nextQueueSlot, reflowQueue, getAccountSlots, accountPrepHHMM, sqlUtc } from "./schedule";
 import { DASHBOARD_HTML } from "./dashboard";
 
+// ── このワーカーのコード版（リリースごとに +1 する）。本部の latest_code_version と比べて「更新あり」を出す。 ──
+// アップデート手順：公開リポを更新したらここを +1 → 本部コンソールで「最新版」を同じ数字に。
+const CODE_VERSION = 1;
+
 const MAX_RETRY = 3;
 const USDJPY_FALLBACK = 155; // 取得できないときの概算レート
 
@@ -670,7 +674,13 @@ export default {
         onboarded = !!(row && row.onboarded);
       } catch { /* accounts未作成 */ }
       const email = await getConfig(env, "member_email");
-      return json({ ok: true, account_id: uid, handle: acc?.handle ?? null, onboarded, email: email ?? null });
+      const latest = parseInt((await getConfig(env, "latest_code_version")) || "0", 10) || 0;
+      const updateNote = (await getConfig(env, "update_note")) || "";
+      return json({
+        ok: true, account_id: uid, handle: acc?.handle ?? null, onboarded, email: email ?? null,
+        version: CODE_VERSION, latest_version: latest, update_available: latest > CODE_VERSION, update_note: updateNote,
+        update_url: "https://join.sns-migiude.com/update",
+      });
     }
     // 会員メールの登録・更新（連絡/周知メール宛先＋将来のメールログイン土台）。app_config に保存。
     if (req.method === "POST" && url.pathname === "/api/account/email") {

@@ -47,6 +47,11 @@ export async function getPromptPack(env: Env): Promise<PromptPack | null> {
   }
   // 2. manifestで版を確認（軽量）。Hub不通なら latest=null → キャッシュをそのまま使う。
   const m = await hqGet(env, "/hq/manifest");
+  // 本部が公開している「最新のコード版」と更新メモも拾ってキャッシュ（ダッシュボードの“更新あり”表示に使う）。
+  if (m) {
+    if (typeof m.code === "number") await setConfig(env, "latest_code_version", String(m.code));
+    if (typeof m.note === "string") await setConfig(env, "update_note", (m.note as string).slice(0, 300));
+  }
   const latest = m && typeof m.prompt === "number" ? (m.prompt as number) : null;
   // 3. 版が変わった／キャッシュ無し のときだけ本体を取得して保存。
   if (latest !== null && (!cached || cached.version !== latest)) {
