@@ -590,7 +590,17 @@ export const DASHBOARD_HTML = `<!doctype html>
 
       <section id="s-help" class="screen hidden">
         <h2>ヘルプ</h2>
-        <p class="lead">困ったとき・仕組みを知りたいときに。知りたい見出しをタップすると開きます。</p>
+        <p class="lead">困ったとき・仕組みを知りたいときに。下の「AIに聞く」で質問するか、見出しをタップして読めます。</p>
+
+        <div class="card" style="border-color:var(--accent)">
+          <b><i class="ti ti-message-chatbot"></i> AIに聞く（操作サポート）</b>
+          <p class="note" style="margin:4px 0 8px;color:var(--text)">操作や仕組みについて、AIがこのヘルプの内容をもとに答えます。💳 あなたのClaudeを使うため、1回あたり少額の料金が発生します。</p>
+          <div class="row" style="gap:8px">
+            <input id="helpQ" placeholder="例：手動承認から自動投稿に切り替えるには？" style="flex:1" onkeydown="if(event.key==='Enter')helpAsk()">
+            <button class="primary" onclick="helpAsk()">聞く</button>
+          </div>
+          <div id="helpA" class="note" style="margin-top:10px;line-height:1.9;color:var(--text);white-space:pre-wrap"></div>
+        </div>
 
         <div class="card" style="background:var(--accent-bg);border-color:#b5d4f4">
           <b>かんたんに言うと</b>
@@ -1977,6 +1987,15 @@ export const DASHBOARD_HTML = `<!doctype html>
     loadAnalysis();
   }
   function periodLabel(){ return ANALYSIS_DAYS>0 ? ("過去"+ANALYSIS_DAYS+"日") : "全期間"; }
+  function helpAsk(){
+    var q=(document.getElementById('helpQ').value||'').trim();
+    var a=document.getElementById('helpA'); if(!a) return;
+    if(!q){ a.textContent='質問を入力してください。'; return; }
+    a.textContent='AIが回答を考えています…';
+    api('POST','/api/help-ask',{account:ACC,question:q}).then(function(r){
+      if(r.body&&r.body.ok){ a.textContent=r.body.answer||''; } else { a.textContent=(r.body&&r.body.error)||'回答に失敗しました。'; }
+    });
+  }
   function collectNow(){
     if(!confirm("いまXからメトリクスをまとめて取得します。\\n\\n💳 Xの読み取りAPIを使うため、取得のたびに料金が発生します（通常は1日1回・自動）。\\n実行しますか？")) return;
     msg("メトリクスを取得しています…（投稿数により数十秒かかることがあります）");
