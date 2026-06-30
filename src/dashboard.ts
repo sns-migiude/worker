@@ -2128,11 +2128,20 @@ export const DASHBOARD_HTML = `<!doctype html>
     var none = remaining<=0;
     var bar = none ? "<span class='pill' style='background:#fdecea;color:var(--danger)'>残り0（使い切りました）</span>"
                    : "<span class='pill' style='background:var(--accent-bg);color:var(--accent-strong)'>残り有効数 "+remaining+" / "+maxu+"</span>";
+    var refurl = b.referral_url || "";
     var h="<div class='card' style='background:var(--accent-bg);border-color:#b5d4f4'>"+
       "<div class='note' style='color:var(--text);margin-bottom:4px'>あなた専用の招待コード</div>"+
       "<div style='font-size:26px;font-weight:700;letter-spacing:2px'>"+esc(b.code)+"</div>"+
-      "<div style='margin:8px 0 12px'>"+bar+" <span class='note'>（使われた回数 "+used+"）</span></div>"+
-      "<div class='row' style='gap:8px'>"+
+      "<div style='margin:8px 0 12px'>"+bar+" <span class='note'>（使われた回数 "+used+"）</span></div>";
+    if(refurl){
+      h+="<label style='margin-top:0'>紹介リンク（これを送るのが一番かんたん）</label>"+
+         "<div class='row' style='gap:6px'>"+
+           "<input id='invUrl' readonly value='"+esc(refurl)+"' style='flex:1;font-size:13px' onclick='this.select()'>"+
+           "<button class='accent' onclick=\\"inviteCopyUrl('"+esc(refurl)+"')\\"><i class='ti ti-link'></i> リンクをコピー</button>"+
+         "</div>"+
+         "<div class='note' style='margin-top:4px'>このリンクを開くと、相手にはコード入力済みの案内とアプリ作成ボタンが表示されます。</div>";
+    }
+    h+="<div class='row' style='gap:8px;margin-top:12px'>"+
         "<button class='primary' onclick=\\"inviteCopy('"+esc(b.code)+"')\\"><i class='ti ti-copy'></i> 共有メッセージをコピー</button>"+
         "<button class='soft' onclick=\\"inviteCopyCode('"+esc(b.code)+"')\\"><i class='ti ti-clipboard'></i> コードだけコピー</button>"+
       "</div>"+
@@ -2141,9 +2150,10 @@ export const DASHBOARD_HTML = `<!doctype html>
     C.innerHTML=h;
   }
   function inviteShareText(code){
-    var deploy=(INV&&INV.deploy_url)||"https://deploy.workers.cloudflare.com/?url=https://github.com/sns-migiude/worker";
+    var ref=(INV&&INV.referral_url)||"";
     var lp=(INV&&INV.lp_url)||"https://join.sns-migiude.com";
-    return "【SNSの右腕】への招待\\n\\nあなたのXの「右腕」になるAIです。あなたの文体を学習して、発信→学習→改善のサイクルまで自動でまわします。\\n\\n▼はじめ方\\n①下のボタンから自分専用のアプリを作成（Cloudflare無料枠）\\n②最初の設定で招待コードを入力\\n③XとClaudeを連携して完了\\n\\n招待コード："+code+"\\nアプリを作る："+deploy+"\\nくわしく："+lp+"\\n\\n※鍵もデータもあなた自身のCloudflareに保存され、他の人からは見えません。費用はあなた自身のAPI利用分だけです。";
+    var link = ref || lp;
+    return "【SNSの右腕】への招待\\n\\nあなたのXの「右腕」になるAIです。あなたの文体を学習して、発信→学習→改善のサイクルまで自動でまわします。\\n\\n▼はじめ方（このリンクを開くだけ）\\n"+link+"\\n\\n招待コード："+code+"\\n（リンクを開くと、コード入力済みの案内とアプリ作成ボタンが出ます）\\n\\n※鍵もデータもあなた自身のCloudflareに保存され、他の人からは見えません。費用はあなた自身のAPI利用分だけです。";
   }
   function inviteClip(text, done, fail){
     try{
@@ -2160,6 +2170,11 @@ export const DASHBOARD_HTML = `<!doctype html>
     inviteClip(code,
       function(){ invMsg("招待コードをコピーしました： "+code, true); },
       function(){ invMsg("コピーできませんでした。招待コードは "+code+" です。", false); });
+  }
+  function inviteCopyUrl(u){
+    inviteClip(u,
+      function(){ invMsg("紹介リンクをコピーしました。SNSのDMやメールに貼り付けて送ってください。", true); },
+      function(){ invMsg("コピーできませんでした。リンク： "+u, false); });
   }
   function collectNow(){
     if(!confirm("いまXからメトリクスをまとめて取得します。\\n\\n💳 Xの読み取りAPIを使うため、取得のたびに料金が発生します（通常は1日1回・自動）。\\n実行しますか？")) return;

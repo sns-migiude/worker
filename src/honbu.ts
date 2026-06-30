@@ -78,6 +78,7 @@ export interface MyInvites {
   used?: number;     // 使用済み回数
   remaining?: number; // 残り有効数
   status?: string;
+  referral_url?: string; // コード埋め込みの紹介リンク
   deploy_url?: string;
   lp_url?: string;
 }
