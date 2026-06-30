@@ -635,6 +635,18 @@ export const DASHBOARD_HTML = `<!doctype html>
           <div class="row"><button class="primary" onclick="chatOpen()"><i class="ti ti-message-chatbot"></i> AIチャットを開く</button></div>
         </div>
 
+        <div class="card" style="border-color:var(--accent)">
+          <b><i class="ti ti-bulb"></i> 要望・不具合を送る</b>
+          <p class="note" style="margin:4px 0 8px;color:var(--text)">改善のリクエストや不具合を運営へ。送る前に<b>AIが「もう解決できる/対応済みでは？」を一次対応</b>します（あなたのClaudeを使用＝少額の料金）。運営からの返信は<b>登録メール宛</b>に届くことがあります。</p>
+          <div class="row" style="gap:16px;margin-bottom:6px">
+            <label style="font-size:14px"><input type="radio" name="fbKind" value="request" checked> 要望</label>
+            <label style="font-size:14px"><input type="radio" name="fbKind" value="bug"> 不具合</label>
+          </div>
+          <textarea id="fbBody" rows="3" placeholder="例：予約の本数を変えたい ／ 〇〇の画面でエラーが出る　など" style="width:100%;box-sizing:border-box"></textarea>
+          <div class="row" style="margin-top:6px"><button class="primary" onclick="fbAsk()"><i class="ti ti-sparkles"></i> AIに相談する</button></div>
+          <div id="fbResult"></div>
+        </div>
+
         <div class="card" style="background:var(--accent-bg);border-color:#b5d4f4">
           <b>かんたんに言うと</b>
           <p class="note" style="line-height:1.9;margin:6px 0 0;color:var(--text)">
@@ -2127,6 +2139,35 @@ export const DASHBOARD_HTML = `<!doctype html>
     log.innerHTML=h;
     log.scrollTop=log.scrollHeight;
   }
+  // 要望・不具合：AI先回り → 運営へ送信。
+  var FB_LAST={body:"",kind:"request",answer:""};
+  function fbKindVal(){ var r=document.getElementsByName("fbKind"); for(var i=0;i<r.length;i++) if(r[i].checked) return r[i].value; return "request"; }
+  function fbAsk(){
+    var t=($("fbBody")||{}).value||""; t=t.trim();
+    if(!t){ if($("fbResult")) $("fbResult").innerHTML="<div class='note'>内容を入力してください。</div>"; return; }
+    FB_LAST={body:t,kind:fbKindVal(),answer:""};
+    if($("fbResult")) $("fbResult").innerHTML="<div class='note'>AIが確認しています…</div>";
+    api("POST","/api/feedback-triage",{account:ACC,kind:FB_LAST.kind,body:t}).then(function(r){
+      var b=r.body||{}, h="";
+      if(b.ok){ FB_LAST.answer=b.answer||""; h="<div class='card' style='background:var(--accent-bg);margin-top:8px'><b>AIからの回答</b><div style='white-space:pre-wrap;margin-top:4px'>"+esc(b.answer||"")+"</div></div>"; }
+      else { h="<div class='note' style='margin-top:8px'>"+esc(b.error||"AIの確認に失敗しました。")+"</div>"; }
+      h+="<div class='row' style='margin-top:8px;gap:8px'>";
+      if(b.ok&&b.resolved){ h+="<button class='soft' onclick='fbDone()'>解決した（閉じる）</button>"; }
+      h+="<button class='primary' onclick='fbSend()'>"+((b.ok&&b.resolved)?"それでも運営に送る":"この内容で運営に送る")+"</button>";
+      h+="</div>";
+      if($("fbResult")) $("fbResult").innerHTML=h;
+    });
+  }
+  function fbSend(){
+    if(!FB_LAST.body) return;
+    if($("fbResult")) $("fbResult").innerHTML="<div class='note'>送信中…</div>";
+    api("POST","/api/feedback-send",{account:ACC,kind:FB_LAST.kind,body:FB_LAST.body,ai_answer:FB_LAST.answer}).then(function(r){
+      var b=r.body||{};
+      if(b.ok){ if($("fbBody")) $("fbBody").value=""; FB_LAST={body:"",kind:"request",answer:""}; if($("fbResult")) $("fbResult").innerHTML="<div class='card' style='background:var(--accent-bg);margin-top:8px'>✅ 運営にお届けしました。ありがとうございます！運営からの返信は登録メール宛に届くことがあります。</div>"; }
+      else { if($("fbResult")) $("fbResult").innerHTML="<div class='note' style='margin-top:8px'>"+esc(b.error||"送信に失敗しました。")+"</div><div class='row' style='margin-top:6px'><button class='primary' onclick='fbSend()'>再送する</button></div>"; }
+    });
+  }
+  function fbDone(){ if($("fbBody")) $("fbBody").value=""; FB_LAST={body:"",kind:"request",answer:""}; if($("fbResult")) $("fbResult").innerHTML="<div class='note' style='margin-top:8px'>解決してよかったです 🎉 また何かあればどうぞ。</div>"; }
   function chatOpen(){
     var d=$("chatDock"); if(!d) return;
     d.classList.add("open"); d.setAttribute("aria-hidden","false");

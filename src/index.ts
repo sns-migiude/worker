@@ -33,7 +33,7 @@ import { callClaude, verifyClaudeKey } from "./claude";
 import { HELP_SPEC, HELP_RULES } from "./help";
 import { generateDrafts } from "./generate";
 import { logClaudeUsage } from "./usage";
-import { syncHonbu, pullFromHonbu, registerWithHonbu, listMyInvites } from "./honbu";
+import { syncHonbu, pullFromHonbu, registerWithHonbu, listMyInvites, ensureHonbuToken } from "./honbu";
 import { getPromptPack, refreshPrompts, hydrateFromCache } from "./prompts";
 import { TYPE_INSTRUCTIONS, CATALOG, CATALOG_KEYS, DEFAULT_ON, DEFAULT_ON_FREE, isLongType, PATTERNS, metaOf, URL_TYPE_INSTRUCTION, URL_STYLES, resolveImageType } from "./taxonomy";
 
@@ -66,7 +66,7 @@ import { DASHBOARD_HTML } from "./dashboard";
 
 // ── このワーカーのコード版（2桁小数・0.01刻み 例 1.00→1.01→…→1.99→2.00）。本部の latest_code_version と数値で比べて「更新あり」を出す。 ──
 // リリース手順：公開リポ更新時にここを +0.01（大きい更新は +1.00 等）→ 本部コンソールで「最新版」を同じ数字に。
-const CODE_VERSION = "1.02";
+const CODE_VERSION = "1.03";
 
 const MAX_RETRY = 3;
 const USDJPY_FALLBACK = 155; // 取得できないときの概算レート
@@ -2757,6 +2757,87 @@ export default {
       } catch (e) {
         console.error(`help-ask失敗: ${e instanceof Error ? e.message : e}`);
         return json({ ok: false, error: "回答に失敗しました。時間をおいて再度お試しください。" }, 200);
+      }
+    }
+
+    // 要望・不具合：AI先回り（会員のClaudeが、ヘルプ＋直近の対応済みを根拠に一次対応）。安いHaiku・料金は会員負担。
+    if (req.method === "POST" && url.pathname === "/api/feedback-triage") {
+      const b = (await req.json().catch(() => null)) as { account?: string; kind?: string; body?: string } | null;
+      const text = String(b?.body ?? "").trim().slice(0, 2000);
+      if (!text) return json({ ok: false, error: "内容を入力してください。" }, 200);
+      const kind = b?.kind === "bug" ? "bug" : "request";
+      const claudeKey = (b?.account ? (await resolveCreds(env, b.account))?.claudeKey : null) || env.ANTHROPIC_API_KEY;
+      if (!claudeKey) return json({ ok: false, error: "Claude APIキーが未設定です（アカウント設定で連携してください）。" }, 200);
+      // 直近の更新（=対応済み）を本部から取得して根拠に加える。取れなくてもヘルプだけで対応。
+      let fixesText = "";
+      try {
+        if (env.HONBU_URL) {
+          const rf = await fetch(`${env.HONBU_URL}/hq/recent-fixes`);
+          if (rf.ok) {
+            const d = (await rf.json()) as { items?: { version?: string; note?: string }[] };
+            const items = Array.isArray(d.items) ? d.items.slice(0, 20) : [];
+            if (items.length) fixesText = items.map((x) => `- v${x.version}: ${x.note}`).join("\n");
+          }
+        }
+      } catch { /* 取れなくても続行 */ }
+      const triagePrompt =
+        "## あなたの役割（要望・不具合の一次対応）\n" +
+        "会員が「要望」または「不具合」を書きました。あなたはまず一次対応します。\n" +
+        "1) ヘルプや下の『最近の更新（対応済み）』を見て、もう解決できる/既に対応済みなら、その方法や“対応済みである旨”を具体的にやさしく答える（resolved=true）。\n" +
+        "2) 本当に新しい要望や未対応の不具合で、運営に届けたほうがよいものは、共感しつつ『運営にお届けします』と述べる（recommend_send=true）。\n" +
+        "3) 不確かな推測や、できない約束はしない。専門用語・英語・コードは避け、平易な日本語で短く。\n" +
+        (fixesText ? ("\n## 最近の更新（対応済み）\n" + fixesText + "\n") : "") +
+        "\n出力はJSONで answer（会員に見せる返答）・resolved（その場で解決/対応済みで完結したか）・recommend_send（運営に届けるべき新規の要望/不具合か）。";
+      try {
+        const { text: out } = await callClaude({
+          apiKey: claudeKey,
+          model: "claude-haiku-4-5",
+          noEffort: true,
+          thinkingMode: "disabled",
+          maxTokens: 900,
+          schema: {
+            type: "object",
+            properties: {
+              answer: { type: "string", description: "会員に見せる返答（やさしい日本語）" },
+              resolved: { type: "boolean", description: "その場で解決・対応済みで完結したか" },
+              recommend_send: { type: "boolean", description: "運営に届けるべき新規の要望/不具合か" },
+            },
+            required: ["answer", "resolved", "recommend_send"],
+            additionalProperties: false,
+          },
+          system: [{ text: HELP_SPEC + "\n\n---\n" + HELP_RULES + "\n\n---\n" + triagePrompt, cache: true }],
+          messages: [{ role: "user", content: `種別：${kind === "bug" ? "不具合" : "要望"}\n内容：${text}` }],
+        });
+        let parsed: { answer?: string; resolved?: boolean; recommend_send?: boolean } = {};
+        try { parsed = JSON.parse(out); } catch { parsed = { answer: out, resolved: false, recommend_send: true }; }
+        return json({ ok: true, answer: parsed.answer ?? "", resolved: !!parsed.resolved, recommend_send: parsed.recommend_send !== false });
+      } catch (e) {
+        console.error(`feedback-triage失敗: ${e instanceof Error ? e.message : e}`);
+        return json({ ok: false, error: "AIの一次対応に失敗しました。そのまま運営に送ることもできます。" }, 200);
+      }
+    }
+
+    // 要望・不具合：運営（本部）へ送る。会員ワーカーが本部トークンで転送。返信先は登録メール。
+    if (req.method === "POST" && url.pathname === "/api/feedback-send") {
+      const b = (await req.json().catch(() => null)) as { account?: string; kind?: string; body?: string; ai_answer?: string } | null;
+      const text = String(b?.body ?? "").trim().slice(0, 4000);
+      if (!text) return json({ ok: false, error: "内容を入力してください。" }, 200);
+      const kind = b?.kind === "bug" ? "bug" : "request";
+      if (!env.HONBU_URL) return json({ ok: false, error: "本部が設定されていません。" }, 200);
+      const uid = await getMemberUid(env);
+      const email = (await getConfig(env, "member_email")) || null;
+      const token = (await ensureHonbuToken(env, uid, null, email)) || env.HONBU_TOKEN || null;
+      if (!token) return json({ ok: false, error: "本部への接続が未確立です。少し待って再度お試しください。" }, 200);
+      try {
+        const res = await fetch(`${env.HONBU_URL}/hq/feedback`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ kind, body: text, ai_answer: String(b?.ai_answer ?? "").slice(0, 4000), email, app_version: CODE_VERSION, member_id: uid }),
+        });
+        if (!res.ok) return json({ ok: false, error: "送信に失敗しました。時間をおいて再度お試しください。" }, 200);
+        return json({ ok: true });
+      } catch {
+        return json({ ok: false, error: "送信に失敗しました。時間をおいて再度お試しください。" }, 200);
       }
     }
 

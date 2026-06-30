@@ -5,7 +5,7 @@ import { getMemberUid, getConfig, setConfig, type Env } from "./accounts";
 
 // 会員ごとの本部トークンを確保する。app_config.honbu_token に無ければ /hq/register で発行して保存。
 //   返り値＝以後の連携に使うトークン（per-member）。登録できなければ null（共通トークンにフォールバック）。
-async function ensureHonbuToken(env: Env, memberId: string, label: string | null, email: string | null): Promise<string | null> {
+export async function ensureHonbuToken(env: Env, memberId: string, label: string | null, email: string | null): Promise<string | null> {
   const saved = await getConfig(env, "honbu_token");
   if (saved) return saved;
   if (!env.HONBU_URL) return null; // 登録は招待コードで認証＝共有HONBU_TOKENは必須でない（公開Worker前提）。
