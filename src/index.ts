@@ -494,6 +494,14 @@ async function handleStatus(env: Env, accountId: string): Promise<Response> {
     else { const pat = hook.split("##")[1]; img = resolveImageType(hook.split("##")[0], (pat && PATTERNS[pat]?.image) || "none"); }
     return { ...p, image_type: isImageType(img) ? img : null };
   });
+  // 学習サイクルの進み具合：cycle_state.updated_at（前回サイクル実行日時・UTC）からの経過日数で「何日目か」を出す。
+  const cycTotal = acc?.cycle_days ?? 5;
+  const cycSt = await env.DB.prepare(`SELECT updated_at FROM cycle_state WHERE account_id = ?`).bind(accountId).first<{ updated_at: string }>().catch(() => null);
+  let cycleDay = 1;
+  if (cycSt?.updated_at) {
+    const elapsed = Math.max(0, Math.floor((Date.now() - new Date(cycSt.updated_at.replace(" ", "T") + "Z").getTime()) / 86400_000));
+    cycleDay = Math.min(elapsed + 1, cycTotal);
+  }
   return json({
     account: accountId,
     counts: Object.fromEntries(counts.results.map((c) => [c.status, c.n])),
@@ -503,7 +511,9 @@ async function handleStatus(env: Env, accountId: string): Promise<Response> {
     failed: failed.results,
     post_slots: await getAccountSlots(env, accountId),
     daily_frequency: acc?.daily_frequency ?? 3,
-    cycle_days: acc?.cycle_days ?? 5,
+    cycle_days: cycTotal,
+    cycle_day: cycleDay,
+    cycle_started: !!cycSt,
     char_limit: (await isPremium(env, accountId)) ? 1000 : 140,
   });
 }

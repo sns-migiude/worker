@@ -290,6 +290,7 @@ export const DASHBOARD_HTML = `<!doctype html>
         </div>
 
         <div id="scpane-queued">
+          <div id="cycleInfo" class="card" style="background:var(--accent-bg);border-color:#b5d4f4;padding:10px 14px;display:none"></div>
           <div class="card">
             <div style="font-weight:500;margin-bottom:6px">基本の配信タイミング</div>
             <div class="note" style="margin-bottom:8px">1日に出す<b id="freqLabel"></b>の、それぞれの時刻を決めます（JST）。本数は「学習データ＆サイクル」で変更できます。<br>⏱ 実際の投稿は<b>前後10分ほどゆらぎます</b>（毎回きっかり同じ時刻だと機械的なので、自然なゆらぎを入れています）。</div>
@@ -2918,6 +2919,14 @@ export const DASHBOARD_HTML = `<!doctype html>
       }).join("") : "<p class='note'>予約済みはありません。</p>";
       if($("qCount")) $("qCount").textContent = q.length?("("+q.length+")"):"";
       if($("pCount")) $("pCount").textContent = po.length?("("+po.length+")"):"";
+      var cInfo=$("cycleInfo"); var cd=r.body&&r.body.cycle_day, ct=r.body&&r.body.cycle_days;
+      if(cInfo){
+        if(ct){
+          var started=r.body&&r.body.cycle_started;
+          cInfo.innerHTML="<b><i class='ti ti-refresh'></i> 学習サイクル："+ct+"日サイクルの "+(started?(cd+"日目"):"開始前")+"</b><div class='note' style='margin-top:3px;color:var(--text)'>毎朝6時に在庫を補充（1回で最大「1日分」）。"+ct+"日ごとに学習し直します。在庫が1日分を切ると、サイクルを待たずに補充します。</div>";
+          cInfo.style.display="block";
+        } else { cInfo.style.display="none"; }
+      }
       $("posted").innerHTML = po.length ? po.map(function(p){
         var t=fmtJst(p.posted_at);
         var h="<div class='card'>";
