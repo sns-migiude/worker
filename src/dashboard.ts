@@ -903,7 +903,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     if(w.update_available){
       var note=w.update_note?("（"+w.update_note+"）"):"";
       var url=w.update_url||"https://join.sns-migiude.com/update";
-      b.innerHTML="<i class='ti ti-rocket'></i> 新しいバージョン <b>v"+esc(w.latest_version)+"</b> が公開されました"+esc(note)+"（今 v"+esc(w.version)+"）。<b>自動更新がONなら近いうちに自動で反映されます</b>（操作不要）。今すぐ反映したい・自動更新が未設定の場合は <a href='"+esc(url)+"' target='_blank' rel='noopener' style='color:#4a3206;text-decoration:underline;font-weight:600'>更新方法 →</a>";
+      b.innerHTML="<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap'><div style='flex:1;min-width:200px'><div style='font-weight:600;margin-bottom:2px'><i class='ti ti-rocket'></i> 新しいバージョン v"+esc(w.latest_version)+" があります（今 v"+esc(w.version)+"）"+esc(note)+"</div><div style='font-size:13px;line-height:1.7'>毎回手動で更新するのは大変です。<b>「自動更新」を一度だけONにすれば、今後はずっと自動で最新になります。</b> <span style='opacity:.72'>（すでにONの方は1日以内に自動反映・操作不要）</span></div></div><a href='"+esc(url)+"' target='_blank' rel='noopener' style='white-space:nowrap;background:#4a3206;color:#fff;text-decoration:none;padding:9px 16px;border-radius:8px;font-weight:600;font-size:13px'>自動更新を設定する →</a></div>";
       b.style.display="block";
     } else { b.style.display="none"; }
   }
