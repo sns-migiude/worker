@@ -37,27 +37,41 @@ export function jitter(slotUtc: string): string {
 }
 
 // 会員ごとの基本配信時間（individual_profile key='post_slots'。無ければ env のデフォルト）
+// 1日の本数ごとの「基本の配信タイミング」プリセット（JST・1日に均等めに分散）。本数を変えても並びが崩れない基準。
+const SLOT_PRESETS: Record<number, string[]> = {
+  1: ["12:00"],
+  2: ["08:00", "20:00"],
+  3: ["07:30", "12:30", "21:00"],
+  4: ["06:30", "11:30", "17:00", "21:00"],
+  5: ["07:00", "11:00", "14:30", "18:00", "21:30"],
+};
+export function presetSlots(freq: number): string[] {
+  const f = Math.max(1, Math.min(5, Math.round(freq) || 1));
+  return (SLOT_PRESETS[f] || SLOT_PRESETS[4]).slice();
+}
+
 export async function getAccountSlots(env: Env, accountId: string): Promise<string[]> {
   const row = await env.DB.prepare(
     `SELECT value_json AS v FROM individual_profile WHERE account_id = ? AND key = 'post_slots'`
   )
     .bind(accountId)
     .first<{ v: string }>();
-  let slots: string[] = [];
+  let saved: string[] = [];
   if (row?.v) {
-    try { slots = JSON.parse(row.v); } catch { slots = row.v.split(","); }
+    try { saved = JSON.parse(row.v); } catch { saved = row.v.split(","); }
   }
-  slots = slots.map((s) => String(s).trim()).filter((s) => /^\d{1,2}:\d{2}$/.test(s));
-  if (!slots.length) {
-    slots = (env.POST_SLOTS_JST ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  }
-  // 時刻の数は「1日の投稿本数」に揃える（本数を超える時刻は持たない）
+  saved = saved.map((s) => String(s).trim()).filter((s) => /^\d{1,2}:\d{2}$/.test(s));
   const acc = await env.DB.prepare(`SELECT daily_frequency FROM accounts WHERE id = ?`)
     .bind(accountId)
     .first<{ daily_frequency: number }>();
-  const freq = acc?.daily_frequency ?? slots.length;
-  if (freq > 0 && slots.length > freq) slots = slots.slice(0, freq);
-  return slots;
+  const freq = acc?.daily_frequency ?? 0;
+  // 本数が分かるなら、保存スロット数がちょうど本数と一致する時だけユーザー設定を採用。
+  // 一致しない（本数を変えた直後など）＝本数ぶんのプリセットに揃える（並びの崩れ・過不足を防ぐ）。
+  if (freq > 0) return saved.length === freq ? saved : presetSlots(freq);
+  // 本数不明：保存があればそれ、無ければenv既定→プリセット4。
+  if (saved.length) return saved;
+  const envSlots = (env.POST_SLOTS_JST ?? "").split(",").map((s) => s.trim()).filter((s) => /^\d{1,2}:\d{2}$/.test(s));
+  return envSlots.length ? envSlots : presetSlots(4);
 }
 
 // 会員ごとの「準備」時刻（JST "HH:MM"）＝その日いちばん早い投稿スロットの leadMin 分前。

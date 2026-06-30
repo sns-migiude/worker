@@ -295,7 +295,7 @@ export const DASHBOARD_HTML = `<!doctype html>
             <div style="font-weight:500;margin-bottom:6px">基本の配信タイミング</div>
             <div class="note" style="margin-bottom:8px">1日に出す<b id="freqLabel"></b>の、それぞれの時刻を決めます（JST）。本数は「学習データ＆サイクル」で変更できます。<br>⏱ 実際の投稿は<b>前後10分ほどゆらぎます</b>（毎回きっかり同じ時刻だと機械的なので、自然なゆらぎを入れています）。<br>🤖 メトリクス取得・学習・生成は、<b>その日いちばん早い投稿の約30分前</b>に自動で回ります（何時に設定しても、投稿までに用意が間に合います）。</div>
             <div id="slotInputs"></div>
-            <div class="row" style="margin-top:10px"><button class="primary" onclick="saveSlots(false)">保存</button><button class="soft" onclick="saveSlots(true)">保存して予約を組み直す</button></div>
+            <div class="row" style="margin-top:10px"><button class="primary" onclick="saveSlots(false)">保存</button><button class="soft" onclick="saveSlots(true)">保存して予約を組み直す</button><button class="soft" onclick="resetSlots()" title="本数に合わせたおすすめの時間に戻します">おすすめに戻す</button></div>
           </div>
           <div class="row" style="justify-content:space-between;align-items:center;margin:14px 0 4px;gap:8px;flex-wrap:wrap">
             <h3 style="font-size:15px;font-weight:500;margin:0">予約済み（投稿待ち）</h3>
@@ -2874,16 +2874,24 @@ export const DASHBOARD_HTML = `<!doctype html>
       + "<div class='note' style='margin-top:2px'><span id='"+rid+"c'>"+jLen(val)+"</span> / "+limit+" 字</div>";
   }
   function replyVal(rid){ var t=$(rid); return t?t.value:undefined; }
-  var curSlots=[]; var curFreq=3; var SLOT_DEFAULTS=["06:30","11:30","17:00","21:00","13:30"];
-  function renderSlotInputs(){
+  var curSlots=[]; var curFreq=3;
+  // 1日の本数ごとの「基本の配信タイミング」プリセット（サーバの SLOT_PRESETS と一致）。
+  function slotPreset(n){
+    var P={1:["12:00"],2:["08:00","20:00"],3:["07:30","12:30","21:00"],4:["06:30","11:30","17:00","21:00"],5:["07:00","11:00","14:30","18:00","21:30"]};
+    return P[Math.max(1,Math.min(5,n))]||P[4];
+  }
+  function renderSlotInputs(usePreset){
     var n=curFreq, h="";
+    // 保存スロットが本数と一致する時だけそれを使う。違う（本数を変えた直後など）or 明示的に「おすすめに戻す」ならプリセット。
+    var base = (!usePreset && curSlots && curSlots.length===n) ? curSlots : slotPreset(n);
     for (var i=0;i<n;i++){
-      var v=curSlots[i]||SLOT_DEFAULTS[i]||"12:00";
+      var v=base[i]||"12:00";
       h+="<div class='row' style='align-items:center;gap:8px;margin-bottom:6px'><span class='note' style='width:60px'>"+(i+1)+"本目</span><input type='time' id='sl"+i+"' value='"+v+"'></div>";
     }
     if ($("slotInputs")) $("slotInputs").innerHTML=h;
     if ($("freqLabel")) $("freqLabel").textContent = n+"本";
   }
+  function resetSlots(){ renderSlotInputs(true); msg("おすすめの時間に戻しました。よければ「保存」してください。"); }
   var schedBodies={}; var schedReplies={}; var schedImg={}; var schedLimit=140;
   function schedTab(which){
     ["queued","posted"].forEach(function(t){
