@@ -2819,10 +2819,13 @@ export default {
 
     // 要望・不具合：運営（本部）へ送る。会員ワーカーが本部トークンで転送。返信先は登録メール。
     if (req.method === "POST" && url.pathname === "/api/feedback-send") {
-      const b = (await req.json().catch(() => null)) as { account?: string; kind?: string; body?: string; ai_answer?: string } | null;
+      const b = (await req.json().catch(() => null)) as { account?: string; kind?: string; body?: string; ai_answer?: string; env_info?: string } | null;
       const text = String(b?.body ?? "").trim().slice(0, 4000);
       if (!text) return json({ ok: false, error: "内容を入力してください。" }, 200);
       const kind = b?.kind === "bug" ? "bug" : "request";
+      // 環境情報（ブラウザ/画面/版など）を本文末尾に自動添付＝運営が状況を把握しやすく。
+      const envInfo = String(b?.env_info ?? "").slice(0, 1000);
+      const finalBody = envInfo ? (text + "\n\n――― 環境情報 ―――\n" + envInfo) : text;
       if (!env.HONBU_URL) return json({ ok: false, error: "本部が設定されていません。" }, 200);
       const uid = await getMemberUid(env);
       const email = (await getConfig(env, "member_email")) || null;
@@ -2832,7 +2835,7 @@ export default {
         const res = await fetch(`${env.HONBU_URL}/hq/feedback`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ kind, body: text, ai_answer: String(b?.ai_answer ?? "").slice(0, 4000), email, app_version: CODE_VERSION, member_id: uid }),
+          body: JSON.stringify({ kind, body: finalBody, ai_answer: String(b?.ai_answer ?? "").slice(0, 4000), email, app_version: CODE_VERSION, member_id: uid }),
         });
         if (!res.ok) return json({ ok: false, error: "送信に失敗しました。時間をおいて再度お試しください。" }, 200);
         return json({ ok: true });

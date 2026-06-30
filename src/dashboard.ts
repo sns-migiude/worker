@@ -190,6 +190,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     <div class="nav" data-s="usage" onclick="nav('usage')"><i class="ti ti-receipt"></i> API料金の目安</div>
     <div class="nav" data-s="settings" onclick="nav('settings')"><i class="ti ti-settings"></i> アカウント設定</div>
     <div class="nav" data-s="help" onclick="nav('help')"><i class="ti ti-help"></i> ヘルプ</div>
+    <div class="nav" data-s="feedback" onclick="nav('feedback')"><i class="ti ti-bulb"></i> 要望・不具合</div>
     <div class="grp" id="grp-dev" style="display:none">開発（devのみ）</div>
     <div class="nav" data-s="uikit" id="nav-uikit" onclick="nav('uikit')" style="display:none"><i class="ti ti-palette"></i> UIサンプル</div>
   </nav>
@@ -624,6 +625,22 @@ export const DASHBOARD_HTML = `<!doctype html>
         </div>
       </section>
 
+      <section id="s-feedback" class="screen hidden">
+        <div style="font-size:18px;font-weight:700;margin:4px 0 10px"><i class="ti ti-bulb"></i> 要望・不具合</div>
+        <div class="card" style="border-color:var(--accent)">
+          <p class="note" style="margin:0 0 8px;color:var(--text)">改善のリクエストや不具合を運営へ。送る前に<b>AIが「もう解決できる/対応済みでは？」を一次対応</b>します（あなたのClaudeを使用＝少額の料金）。運営からの返信は<b>登録メール宛</b>に届くことがあります。</p>
+          <div class="row" style="gap:18px;margin-bottom:8px">
+            <label style="font-size:14px"><input type="radio" name="fbKind" value="request" checked onclick="fbKindChange()"> 💡 要望</label>
+            <label style="font-size:14px"><input type="radio" name="fbKind" value="bug" onclick="fbKindChange()"> 🐞 不具合</label>
+          </div>
+          <div id="fbHint" class="note" style="background:var(--accent-bg);border-radius:8px;padding:9px 11px;margin-bottom:6px;line-height:1.8;color:var(--text)"></div>
+          <textarea id="fbBody" rows="6" style="width:100%;box-sizing:border-box"></textarea>
+          <div class="note" style="margin-top:6px">※ アプリのバージョン・ブラウザ・画面サイズなどの<b>環境情報は自動で添付</b>されます（手入力は不要です）。</div>
+          <div class="row" style="margin-top:8px;gap:8px"><button class="primary" onclick="fbAsk()"><i class="ti ti-sparkles"></i> AIに相談する</button><button class="soft" id="fbTplBtn" onclick="fbTemplate()" style="display:none">記入テンプレを入れる</button></div>
+          <div id="fbResult"></div>
+        </div>
+      </section>
+
       <section id="s-help" class="screen hidden">
         <h2>ヘルプ</h2>
         <p class="lead">困ったとき・仕組みを知りたいときに。下の「AIに聞く」で質問するか、見出しをタップして読めます。</p>
@@ -633,18 +650,6 @@ export const DASHBOARD_HTML = `<!doctype html>
           <p class="note" style="margin:4px 0 8px;color:var(--text)">操作や仕組みについて、AIがこのアプリの仕様をもとに答えます。チャットは<b>右下の💬ボタンからどの画面でも</b>開けます（会話の続きで聞き直しもOK）。</p>
           <p class="note" style="margin:0 0 8px"><b>💳 回答はあなた自身が連携したClaude APIで生成されます。</b>そのため回答のたびに、あなたのClaudeにごく少額の料金が発生します（運営への支払いではありません）。</p>
           <div class="row"><button class="primary" onclick="chatOpen()"><i class="ti ti-message-chatbot"></i> AIチャットを開く</button></div>
-        </div>
-
-        <div class="card" style="border-color:var(--accent)">
-          <b><i class="ti ti-bulb"></i> 要望・不具合を送る</b>
-          <p class="note" style="margin:4px 0 8px;color:var(--text)">改善のリクエストや不具合を運営へ。送る前に<b>AIが「もう解決できる/対応済みでは？」を一次対応</b>します（あなたのClaudeを使用＝少額の料金）。運営からの返信は<b>登録メール宛</b>に届くことがあります。</p>
-          <div class="row" style="gap:16px;margin-bottom:6px">
-            <label style="font-size:14px"><input type="radio" name="fbKind" value="request" checked> 要望</label>
-            <label style="font-size:14px"><input type="radio" name="fbKind" value="bug"> 不具合</label>
-          </div>
-          <textarea id="fbBody" rows="3" placeholder="例：予約の本数を変えたい ／ 〇〇の画面でエラーが出る　など" style="width:100%;box-sizing:border-box"></textarea>
-          <div class="row" style="margin-top:6px"><button class="primary" onclick="fbAsk()"><i class="ti ti-sparkles"></i> AIに相談する</button></div>
-          <div id="fbResult"></div>
         </div>
 
         <div class="card" style="background:var(--accent-bg);border-color:#b5d4f4">
@@ -1415,6 +1420,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     if (s==="typemanage"){ loadTypeManage(); }
     if (s==="cards"){ loadCards(); }
     if (s==="invite"){ loadInvites(); }
+    if (s==="feedback"){ fbKindChange(); if($("fbResult")) $("fbResult").innerHTML=""; }
     if (s==="uikit"){ loadUikit(); }
   }
   // ── クリック→CV：誘導先URL別の クリック(X)・CV(計測ピクセル)・CVR・売上 ──
@@ -2142,6 +2148,30 @@ export const DASHBOARD_HTML = `<!doctype html>
   // 要望・不具合：AI先回り → 運営へ送信。
   var FB_LAST={body:"",kind:"request",answer:""};
   function fbKindVal(){ var r=document.getElementsByName("fbKind"); for(var i=0;i<r.length;i++) if(r[i].checked) return r[i].value; return "request"; }
+  function fbEnvInfo(){
+    try{
+      var v=(($("verLabel")||{}).textContent||"").trim();
+      return "アプリ版: "+(v||"?")+" / ブラウザ: "+(navigator.userAgent||"?")+" / 画面: "+(window.screen?(window.screen.width+"×"+window.screen.height):"?")+" / 言語: "+(navigator.language||"?");
+    }catch(e){ return ""; }
+  }
+  function fbKindChange(){
+    var k=fbKindVal(), hint=$("fbHint"), ta=$("fbBody"), tb=$("fbTplBtn");
+    if(k==="bug"){
+      if(hint) hint.innerHTML="🐞 <b>不具合はできるだけ具体的に：</b><br>① どの画面で　② 何をしたら　③ どうなった（エラーの文字があればそのまま）　④ いつから・毎回か時々か";
+      if(ta) ta.placeholder="例）「予約済み＆投稿済み」の画面で、投稿時刻がずれて表示されます。昨日から毎回です。";
+      if(tb) tb.style.display="";
+    } else {
+      if(hint) hint.innerHTML="💡 <b>どんなことができたら嬉しいですか？</b> できれば「なぜ欲しいか」も添えてください。";
+      if(ta) ta.placeholder="例）1日の投稿本数を曜日ごとに変えたいです。平日と週末で投稿量を分けたいので。";
+      if(tb) tb.style.display="none";
+    }
+  }
+  function fbTemplate(){
+    var ta=$("fbBody"); if(!ta) return;
+    if(ta.value.trim() && !confirm("入力中の内容をテンプレで置き換えますか？")) return;
+    ta.value="【どの画面で】\\n\\n【何をしたら】\\n\\n【どうなった（エラー文があればそのまま）】\\n\\n【どうなってほしい／いつから】\\n";
+    ta.focus();
+  }
   function fbAsk(){
     var t=($("fbBody")||{}).value||""; t=t.trim();
     if(!t){ if($("fbResult")) $("fbResult").innerHTML="<div class='note'>内容を入力してください。</div>"; return; }
@@ -2161,7 +2191,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   function fbSend(){
     if(!FB_LAST.body) return;
     if($("fbResult")) $("fbResult").innerHTML="<div class='note'>送信中…</div>";
-    api("POST","/api/feedback-send",{account:ACC,kind:FB_LAST.kind,body:FB_LAST.body,ai_answer:FB_LAST.answer}).then(function(r){
+    api("POST","/api/feedback-send",{account:ACC,kind:FB_LAST.kind,body:FB_LAST.body,ai_answer:FB_LAST.answer,env_info:fbEnvInfo()}).then(function(r){
       var b=r.body||{};
       if(b.ok){ if($("fbBody")) $("fbBody").value=""; FB_LAST={body:"",kind:"request",answer:""}; if($("fbResult")) $("fbResult").innerHTML="<div class='card' style='background:var(--accent-bg);margin-top:8px'>✅ 運営にお届けしました。ありがとうございます！運営からの返信は登録メール宛に届くことがあります。</div>"; }
       else { if($("fbResult")) $("fbResult").innerHTML="<div class='note' style='margin-top:8px'>"+esc(b.error||"送信に失敗しました。")+"</div><div class='row' style='margin-top:6px'><button class='primary' onclick='fbSend()'>再送する</button></div>"; }
