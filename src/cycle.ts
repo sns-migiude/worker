@@ -766,30 +766,37 @@ export async function runCycle(
   const accounts = await loadActiveAccounts(env);
   const out: Array<{ account: string; learned: boolean; generated: number }> = [];
   for (const acc of accounts) {
-    if (!acc.platforms.includes("x")) continue;
-    try {
-      if (await isCycleTurn(env, acc)) {
-        // ── サイクル切替：学習し直し → 古い傾向の“自動生成”予約を作り直し（厳密にサイクルを保持） ──
-        const learned = await learnForAccount(env, acc);
-        await learnUrlAffinity(env, acc); // URL誘導はクリック/CVで学習（誘導スタイルの良し悪し）
-        await autoUnadoptLowScore(env, acc); // 設定ONなら低スコア型を自動不採用（微調整期・床10維持）
-        await updateExecNotes(env, acc); // 型別の実行ノート（微調整）を更新。新しい添削があった型だけ
-        // 未投稿の“自動生成”予約(source=tool)だけ破棄。会員が編集/手動生成した分(source=manual)・承認待ち(pending)は残す。
-        await env.DB.prepare(`DELETE FROM posts WHERE account_id = ? AND status = 'queued' AND source = 'tool'`).bind(acc.id).run();
-        const generated = await replenishForAccount(env, acc); // 新しい学習で1日分（source=tool）
-        await stampCycle(env, acc.id, `cycle turn learned=${learned} regen=${generated}`);
-        out.push({ account: acc.id, learned, generated });
-      } else {
-        // ── サイクル途中：在庫が1日分を切ったら緊急補充のみ（学習・作り直し・スタンプはしない＝サイクル日数は進む） ──
-        const have = (await env.DB.prepare(`SELECT COUNT(*) AS n FROM posts WHERE account_id = ? AND status IN ('queued','pending')`).bind(acc.id).first<{ n: number }>())?.n ?? 0;
-        if (have < acc.daily_frequency) {
-          const generated = await replenishForAccount(env, acc); // そのサイクルの学習のまま1日分（source=tool）
-          out.push({ account: acc.id, learned: false, generated });
-        }
-      }
-    } catch (e) {
-      console.error(`[${acc.id}] サイクル失敗: ${e instanceof Error ? e.message : e}`);
-    }
+    const r = await runCycleForAccount(env, acc);
+    if (r) out.push({ account: acc.id, ...r });
   }
   return out;
+}
+
+// 1アカウントぶんのサイクルを回す（会員ごとに「最早スロットの少し前」で呼ぶ＝投稿前に在庫を用意）。
+export async function runCycleForAccount(env: Env, acc: Account): Promise<{ learned: boolean; generated: number } | null> {
+  if (!acc.platforms.includes("x")) return null;
+  try {
+    if (await isCycleTurn(env, acc)) {
+      // ── サイクル切替：学習し直し → 古い傾向の“自動生成”予約を作り直し（厳密にサイクルを保持） ──
+      const learned = await learnForAccount(env, acc);
+      await learnUrlAffinity(env, acc); // URL誘導はクリック/CVで学習（誘導スタイルの良し悪し）
+      await autoUnadoptLowScore(env, acc); // 設定ONなら低スコア型を自動不採用（微調整期・床10維持）
+      await updateExecNotes(env, acc); // 型別の実行ノート（微調整）を更新。新しい添削があった型だけ
+      // 未投稿の“自動生成”予約(source=tool)だけ破棄。会員が編集/手動生成した分(source=manual)・承認待ち(pending)は残す。
+      await env.DB.prepare(`DELETE FROM posts WHERE account_id = ? AND status = 'queued' AND source = 'tool'`).bind(acc.id).run();
+      const generated = await replenishForAccount(env, acc); // 新しい学習で1日分（source=tool）
+      await stampCycle(env, acc.id, `cycle turn learned=${learned} regen=${generated}`);
+      return { learned, generated };
+    }
+    // ── サイクル途中：在庫が1日分を切ったら緊急補充のみ（学習・作り直し・スタンプはしない＝サイクル日数は進む） ──
+    const have = (await env.DB.prepare(`SELECT COUNT(*) AS n FROM posts WHERE account_id = ? AND status IN ('queued','pending')`).bind(acc.id).first<{ n: number }>())?.n ?? 0;
+    if (have < acc.daily_frequency) {
+      const generated = await replenishForAccount(env, acc); // そのサイクルの学習のまま1日分（source=tool）
+      return { learned: false, generated };
+    }
+    return { learned: false, generated: 0 };
+  } catch (e) {
+    console.error(`[${acc.id}] サイクル失敗: ${e instanceof Error ? e.message : e}`);
+    return null;
+  }
 }

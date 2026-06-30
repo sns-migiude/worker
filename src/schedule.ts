@@ -60,6 +60,23 @@ export async function getAccountSlots(env: Env, accountId: string): Promise<stri
   return slots;
 }
 
+// 会員ごとの「準備」時刻（JST "HH:MM"）＝その日いちばん早い投稿スロットの leadMin 分前。
+//   毎朝この時刻に メトリクス取得→学習→生成 を回し、初回投稿までに在庫を用意する。
+//   投稿時刻を自由に設定しても（早朝でも）生成が間に合うように、固定時刻ではなく会員ごとに寄せる。
+export async function accountPrepHHMM(env: Env, accountId: string, leadMin: number): Promise<string> {
+  const slots = await getAccountSlots(env, accountId);
+  let minM = 24 * 60;
+  for (const s of slots) {
+    const m = s.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) continue;
+    const mins = (parseInt(m[1], 10) % 24) * 60 + (parseInt(m[2], 10) % 60);
+    if (mins < minM) minM = mins;
+  }
+  if (minM >= 24 * 60) minM = 6 * 60 + 30; // スロット不明時のフォールバック（06:30）
+  const prep = (((minM - leadMin) % 1440) + 1440) % 1440; // 0時跨ぎは前日扱い（毎分cronなのでその時刻で発火）
+  return String(Math.floor(prep / 60)).padStart(2, "0") + ":" + String(prep % 60).padStart(2, "0");
+}
+
 // 新規キュー投入1本の予約時刻＝既存queuedの最後の予約の次のスロット＋ゆらぎ（無ければ今の次）
 export async function nextQueueSlot(env: Env, accountId: string): Promise<string> {
   const slots = await getAccountSlots(env, accountId);

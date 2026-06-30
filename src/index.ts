@@ -58,10 +58,10 @@ async function urlSampleInstr(env: Env, accountId: string, angle: string): Promi
   return `${URL_TYPE_INSTRUCTION}${a ? "\n" + a : ""}\n誘導先URL: [ここにURL]（飛ばし先URLが未登録です。設定で登録すると、その記事の内容に沿ったサンプルになります）`;
 }
 import { renderCardPng, presetTheme, CARD_PRESETS, CARD_FONTS, isImageType, normImageType, type CardTheme } from "./render";
-import { collectMetrics, collectReplies } from "./collect";
-import { runCycle, generateSamples, regenerateForAccount, cancelQueuedForAccount, generateDaysForAccount, inventoryCap } from "./cycle";
+import { collectMetrics, collectReplies, collectForAccount } from "./collect";
+import { runCycle, runCycleForAccount, generateSamples, regenerateForAccount, cancelQueuedForAccount, generateDaysForAccount, inventoryCap } from "./cycle";
 import { distillCardText } from "./generate";
-import { nextQueueSlot, reflowQueue, getAccountSlots, sqlUtc } from "./schedule";
+import { nextQueueSlot, reflowQueue, getAccountSlots, accountPrepHHMM, sqlUtc } from "./schedule";
 import { DASHBOARD_HTML } from "./dashboard";
 
 const MAX_RETRY = 3;
@@ -2664,39 +2664,46 @@ export default {
       String(jst.getUTCHours()).padStart(2, "0") +
       ":" +
       String(jst.getUTCMinutes()).padStart(2, "0");
-    const metricsSlot = (env.METRICS_SLOT_JST ?? "05:00").trim();
-    const cycleStart = (env.CYCLE_START_JST ?? "06:00").trim();
-    // 受信専用同期の時刻（既定17:00 JST）。""にすると無効。フル同期(05:00)とは別枠で、効く型/お知らせの反映だけ早める。
+    // 本部への日次同期（push+pull）の固定時刻。生成タイミングとは独立（集合知共有は時間にシビアでない）。
+    const honbuSyncSlot = (env.METRICS_SLOT_JST ?? "05:00").trim();
+    // 受信専用同期の時刻（既定17:00 JST）。""にすると無効。効く型/お知らせの反映だけ早める。
     const pullSlot = (env.HONBU_PULL_SLOT_JST ?? "17:00").trim();
+    // 「準備」を初回投稿の何分前に回すか（既定30分）。会員ごとに最早スロットへ寄せる。
+    const leadMin = parseInt(env.PREP_LEAD_MIN ?? "30", 10) || 30;
 
     // 毎回：期限が来た予約（not_before<=now）を各アカウント1本ずつ投稿（ゆらぎを尊重）
     await postSlotAllAccounts(env);
 
-    if (hhmm === metricsSlot) {
-      await collectMetrics(env);
-      try {
-        await collectReplies(env);
-      } catch (e) {
-        console.error(`リプ収集失敗: ${e instanceof Error ? e.message : e}`);
+    // 会員ごと：その日いちばん早い投稿の (leadMin) 分前に「メトリクス取得→学習→生成」を実行。
+    //   投稿時刻を自由に設定しても（早朝でも）、初回投稿までに在庫が用意される。
+    try {
+      const accounts = await loadActiveAccounts(env);
+      for (const acc of accounts) {
+        if (!acc.platforms.includes("x")) continue;
+        const prep = await accountPrepHHMM(env, acc.id, leadMin);
+        if (hhmm === prep) {
+          await collectForAccount(env, acc); // X読み取り（最新の反応数値）→学習の材料
+          await runCycleForAccount(env, acc); // 学習→生成（サイクル切替=作り直し / 途中=緊急補充）
+        }
       }
-      // メトリクス取得後に本部と同期（最新の成績を共有し、効く型ライブラリを受け取る）。
+    } catch (e) {
+      console.error(`会員ごとの準備処理に失敗: ${e instanceof Error ? e.message : e}`);
+    }
+
+    // 本部との同期（生成とは独立・固定時刻）。push=最新の型/成績、pull=効く型ライブラリ＋お知らせ。
+    if (hhmm === honbuSyncSlot) {
       try {
         await syncHonbu(env);
       } catch (e) {
         console.error(`本部同期失敗: ${e instanceof Error ? e.message : e}`);
       }
     } else if (pullSlot && hhmm === pullSlot) {
-      // 受信専用同期：本部から効く型ライブラリ＋お知らせだけを取得（push・メトリクス取得なし＝X/Claude API不使用・無料）。
       try {
         const r = await pullFromHonbu(env);
         console.log(`本部 受信専用同期: 効く型${r.library}件・お知らせ${r.broadcasts}件を取得`);
       } catch (e) {
         console.error(`本部 受信専用同期 失敗: ${e instanceof Error ? e.message : e}`);
       }
-    }
-    if (hhmm === cycleStart) {
-      // 個性ループ：cycle_days周期＋在庫が尽きそうな時に、学習＋キュー補充
-      await runCycle(env);
     }
   },
 } satisfies ExportedHandler<Env>;

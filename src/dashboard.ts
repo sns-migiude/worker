@@ -293,7 +293,7 @@ export const DASHBOARD_HTML = `<!doctype html>
           <div id="cycleInfo" class="card" style="background:var(--accent-bg);border-color:#b5d4f4;padding:10px 14px;display:none"></div>
           <div class="card">
             <div style="font-weight:500;margin-bottom:6px">基本の配信タイミング</div>
-            <div class="note" style="margin-bottom:8px">1日に出す<b id="freqLabel"></b>の、それぞれの時刻を決めます（JST）。本数は「学習データ＆サイクル」で変更できます。<br>⏱ 実際の投稿は<b>前後10分ほどゆらぎます</b>（毎回きっかり同じ時刻だと機械的なので、自然なゆらぎを入れています）。</div>
+            <div class="note" style="margin-bottom:8px">1日に出す<b id="freqLabel"></b>の、それぞれの時刻を決めます（JST）。本数は「学習データ＆サイクル」で変更できます。<br>⏱ 実際の投稿は<b>前後10分ほどゆらぎます</b>（毎回きっかり同じ時刻だと機械的なので、自然なゆらぎを入れています）。<br>🤖 メトリクス取得・学習・生成は、<b>その日いちばん早い投稿の約30分前</b>に自動で回ります（何時に設定しても、投稿までに用意が間に合います）。</div>
             <div id="slotInputs"></div>
             <div class="row" style="margin-top:10px"><button class="primary" onclick="saveSlots(false)">保存</button><button class="soft" onclick="saveSlots(true)">保存して予約を組み直す</button></div>
           </div>

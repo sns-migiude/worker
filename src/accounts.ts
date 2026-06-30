@@ -18,7 +18,8 @@ export interface Env {
   POST_SLOTS_JST: string;
   METRICS_SLOT_JST: string;
   METRICS_WINDOW_DAYS: string;
-  CYCLE_START_JST?: string;
+  CYCLE_START_JST?: string; // （旧）固定のサイクル時刻。現在は会員ごとに「最早スロット−PREP_LEAD_MIN分」で回すため未使用
+  PREP_LEAD_MIN?: string; // 準備（メトリクス→学習→生成）を初回投稿の何分前に回すか（既定30）
   HONBU_PULL_SLOT_JST?: string; // 受信専用同期の時刻（既定17:00 JST・""で無効）。効く型/お知らせの反映を早める無料の追加pull
   ENV_LABEL?: string; // 環境表示（本番は空・devは「開発環境」）
   POST_ENABLED?: string; // "0" なら実際の投稿をしない（開発環境の安全装置）

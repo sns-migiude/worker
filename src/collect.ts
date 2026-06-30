@@ -147,6 +147,19 @@ async function collectMetricsForAccount(
   return saved;
 }
 
+// 1アカウントぶんのメトリクス＋リプ収集（会員ごとに「最早スロットの少し前」で呼ぶ）。Xクレデンシャルが無ければ何もしない。
+export async function collectForAccount(env: Env, account: Account): Promise<number> {
+  if (!account.platforms.includes("x")) return 0;
+  const creds = await xCreds(env, account.id);
+  if (!creds) return 0;
+  let saved = 0;
+  try { saved = await collectMetricsForAccount(env, account, creds); }
+  catch (e) { console.error(`[${account.id}] メトリクス収集失敗: ${e instanceof Error ? e.message : e}`); }
+  try { await collectRepliesForAccount(env, account, creds); }
+  catch (e) { console.error(`[${account.id}] リプ収集失敗: ${e instanceof Error ? e.message : e}`); }
+  return saved;
+}
+
 export async function collectMetrics(
   env: Env
 ): Promise<Array<{ account: string; saved: number }>> {
