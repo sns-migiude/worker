@@ -2591,11 +2591,21 @@ export default {
 
     // AIに聞く（操作サポート）：会員のClaudeに仕様書(HELP_SPEC)を渡して質問へ回答。安いHaiku・料金は会員負担。
     if (req.method === "POST" && url.pathname === "/api/help-ask") {
-      const b = (await req.json().catch(() => null)) as { account?: string; question?: string } | null;
+      const b = (await req.json().catch(() => null)) as {
+        account?: string;
+        question?: string;
+        history?: { role?: string; content?: string }[];
+      } | null;
       const q = String(b?.question ?? "").trim().slice(0, 1000);
       if (!q) return json({ ok: false, error: "質問を入力してください。" }, 200);
       const claudeKey = (b?.account ? (await resolveCreds(env, b.account))?.claudeKey : null) || env.ANTHROPIC_API_KEY;
       if (!claudeKey) return json({ ok: false, error: "Claude APIキーが未設定です（アカウント設定で連携してください）。" }, 200);
+      // 直近の会話履歴（最大6往復ぶん）を文脈として渡す。役割は user/assistant のみ採用し、各発言は長さを制限。
+      const hist = (Array.isArray(b?.history) ? b!.history! : [])
+        .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
+        .slice(-12)
+        .map((m) => ({ role: m.role as "user" | "assistant", content: String(m.content).slice(0, 1500) }));
+      const messages = [...hist, { role: "user" as const, content: q }];
       try {
         const { text } = await callClaude({
           apiKey: claudeKey,
@@ -2604,7 +2614,7 @@ export default {
           thinkingMode: "disabled",
           maxTokens: 900,
           system: [{ text: HELP_SPEC + "\n\n---\n" + HELP_RULES, cache: true }],
-          userText: q,
+          messages,
         });
         return json({ ok: true, answer: text });
       } catch (e) {

@@ -116,6 +116,27 @@ export const DASHBOARD_HTML = `<!doctype html>
   .switch input:checked + .slider:before{ transform:translateX(20px); }
   .netaItem{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); margin-bottom:6px; font-size:13px; }
   .badge{ display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 5px; margin-left:6px; border-radius:999px; background:#e0245e; color:#fff; font-size:11px; font-weight:600; line-height:1; }
+  /* 常設AIチャット（右カラム・折りたたみ） */
+  .chatfab{ position:fixed; right:20px; bottom:20px; width:54px; height:54px; padding:0; border-radius:50%; background:var(--accent); border-color:var(--accent); color:#fff; box-shadow:0 4px 16px rgba(0,0,0,.20); font-size:24px; display:flex; align-items:center; justify-content:center; z-index:50; }
+  .chatfab:hover{ background:var(--accent-strong); }
+  .chatfab.hide{ display:none; }
+  .chatdock{ position:fixed; top:0; right:0; width:384px; max-width:94vw; height:100vh; height:100dvh; background:var(--card); border-left:1px solid var(--border); box-shadow:-8px 0 28px rgba(0,0,0,.12); display:flex; flex-direction:column; transform:translateX(100%); transition:transform .25s ease; z-index:60; }
+  .chatdock.open{ transform:translateX(0); }
+  .chat-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:13px 16px; border-bottom:1px solid var(--border); flex:none; }
+  .chat-head b{ display:flex; align-items:center; gap:7px; font-weight:600; font-size:15px; }
+  .chat-head b i{ color:var(--accent); font-size:19px; }
+  .chat-head button{ padding:5px 9px; }
+  .chat-log{ flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; }
+  .chat-msg{ max-width:90%; padding:10px 13px; border-radius:14px; font-size:14px; line-height:1.8; white-space:pre-wrap; word-break:break-word; }
+  .chat-msg.u{ align-self:flex-end; background:var(--accent); color:#fff; border-bottom-right-radius:4px; }
+  .chat-msg.a{ align-self:flex-start; background:var(--surface); color:var(--text); border-bottom-left-radius:4px; }
+  .chat-msg.a.think{ color:var(--muted); }
+  .chat-msg.a a{ color:var(--accent); text-decoration:underline; }
+  .chat-hint{ align-self:center; text-align:center; color:var(--faint); font-size:12px; line-height:1.7; padding:8px 6px; }
+  .chat-in{ display:flex; gap:8px; padding:12px 14px 4px; border-top:1px solid var(--border); align-items:flex-end; flex:none; }
+  .chat-in textarea{ min-height:0; height:42px; max-height:120px; resize:none; line-height:1.5; }
+  .chat-in button{ flex:none; padding:10px 13px; }
+  .chat-foot{ padding:2px 14px 10px; flex:none; }
   @media (max-width:760px){
     .shell{ flex-direction:column; }
     .side{ width:auto; flex:none; border-right:none; border-bottom:1px solid var(--border); display:flex; gap:4px; overflow-x:auto; padding:8px; }
@@ -124,6 +145,8 @@ export const DASHBOARD_HTML = `<!doctype html>
     .nav i{ font-size:20px; }
     .top{ padding:12px 16px; }
     .body{ padding:16px; }
+    .chatfab{ right:14px; bottom:14px; }
+    .chatdock{ width:100vw; max-width:100vw; }
   }
 </style>
 </head>
@@ -594,12 +617,8 @@ export const DASHBOARD_HTML = `<!doctype html>
 
         <div class="card" style="border-color:var(--accent)">
           <b><i class="ti ti-message-chatbot"></i> AIに聞く（操作サポート）</b>
-          <p class="note" style="margin:4px 0 8px;color:var(--text)">操作や仕組みについて、AIがこのヘルプの内容をもとに答えます。💳 あなたのClaudeを使うため、1回あたり少額の料金が発生します。</p>
-          <div class="row" style="gap:8px">
-            <input id="helpQ" placeholder="例：手動承認から自動投稿に切り替えるには？" style="flex:1" onkeydown="if(event.key==='Enter')helpAsk()">
-            <button class="primary" onclick="helpAsk()">聞く</button>
-          </div>
-          <div id="helpA" class="note" style="margin-top:10px;line-height:1.9;color:var(--text);white-space:pre-wrap"></div>
+          <p class="note" style="margin:4px 0 8px;color:var(--text)">操作や仕組みについて、AIがこのアプリの仕様をもとに答えます。チャットは<b>右下のボタンからどの画面でも</b>開けます。💳 あなたのClaudeを使うため、1回あたり少額の料金が発生します。</p>
+          <div class="row"><button class="primary" onclick="chatOpen()"><i class="ti ti-message-chatbot"></i> AIチャットを開く</button></div>
         </div>
 
         <div class="card" style="background:var(--accent-bg);border-color:#b5d4f4">
@@ -726,6 +745,24 @@ export const DASHBOARD_HTML = `<!doctype html>
       </div>
     </div>
   </div>
+
+  <!-- 常設AIチャット（どの画面からでも開ける操作サポート） -->
+  <button id="chatFab" class="chatfab" onclick="chatOpen()" title="AIに聞く（操作サポート）"><i class="ti ti-message-chatbot"></i></button>
+  <aside id="chatDock" class="chatdock" aria-hidden="true">
+    <div class="chat-head">
+      <b><i class="ti ti-message-chatbot"></i> AIサポート</b>
+      <div class="row" style="gap:4px">
+        <button class="soft" onclick="chatClear()" title="会話を消す"><i class="ti ti-eraser"></i></button>
+        <button class="soft" onclick="chatClose()" title="閉じる"><i class="ti ti-x"></i></button>
+      </div>
+    </div>
+    <div id="chatLog" class="chat-log"></div>
+    <div class="chat-in">
+      <textarea id="chatQ" rows="1" placeholder="操作や仕組みを質問…（Enterで送信）" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend();}"></textarea>
+      <button class="primary" onclick="chatSend()" title="送信"><i class="ti ti-send"></i></button>
+    </div>
+    <div class="chat-foot"><div class="note">回答はあなたのClaudeで生成（1回ごとに少額の料金）。仕様書にある操作のみ答えます。</div></div>
+  </aside>
 </div>
 
 <script>
@@ -1987,13 +2024,53 @@ export const DASHBOARD_HTML = `<!doctype html>
     loadAnalysis();
   }
   function periodLabel(){ return ANALYSIS_DAYS>0 ? ("過去"+ANALYSIS_DAYS+"日") : "全期間"; }
-  function helpAsk(){
-    var q=(document.getElementById('helpQ').value||'').trim();
-    var a=document.getElementById('helpA'); if(!a) return;
-    if(!q){ a.textContent='質問を入力してください。'; return; }
-    a.textContent='AIが回答を考えています…';
-    api('POST','/api/help-ask',{account:ACC,question:q}).then(function(r){
-      if(r.body&&r.body.ok){ a.textContent=r.body.answer||''; } else { a.textContent=(r.body&&r.body.error)||'回答に失敗しました。'; }
+  // ===== 常設AIチャット（操作サポート） =====
+  var CHAT = [];          // {role:"user"|"assistant", content:string}
+  var CHAT_BUSY = false;
+  try{ CHAT = JSON.parse(localStorage.getItem("sns_chat")||"[]")||[]; }catch(e){ CHAT=[]; }
+  function chatSave(){ try{ localStorage.setItem("sns_chat", JSON.stringify(CHAT.slice(-40))); }catch(e){} }
+  function chatRender(){
+    var log=$("chatLog"); if(!log) return;
+    if(!CHAT.length){
+      log.innerHTML="<div class='chat-hint'>操作・仕組みについて何でも聞いてください。<br>このアプリの仕様書をもとにAIが答えます。<br><br>例）手動承認から自動投稿に切り替えるには？<br>例）反応の数字が出ないのはなぜ？</div>";
+      return;
+    }
+    var h="";
+    for(var i=0;i<CHAT.length;i++){
+      var m=CHAT[i]; var cls=(m.role==="user")?"u":"a";
+      h+="<div class='chat-msg "+cls+"'>"+esc(m.content)+"</div>";
+    }
+    if(CHAT_BUSY){ h+="<div class='chat-msg a think'>考えています…</div>"; }
+    log.innerHTML=h;
+    log.scrollTop=log.scrollHeight;
+  }
+  function chatOpen(){
+    var d=$("chatDock"); if(!d) return;
+    d.classList.add("open"); d.setAttribute("aria-hidden","false");
+    var f=$("chatFab"); if(f) f.classList.add("hide");
+    chatRender();
+    var q=$("chatQ"); if(q) setTimeout(function(){ q.focus(); }, 250);
+  }
+  function chatClose(){
+    var d=$("chatDock"); if(d){ d.classList.remove("open"); d.setAttribute("aria-hidden","true"); }
+    var f=$("chatFab"); if(f) f.classList.remove("hide");
+  }
+  function chatClear(){ CHAT=[]; chatSave(); chatRender(); }
+  function chatSend(){
+    if(CHAT_BUSY) return;
+    var ta=$("chatQ"); if(!ta) return;
+    var q=(ta.value||"").trim(); if(!q) return;
+    ta.value=""; ta.style.height="42px";
+    CHAT.push({role:"user",content:q}); chatSave();
+    CHAT_BUSY=true; chatRender();
+    var hist=CHAT.slice(-12);
+    api("POST","/api/help-ask",{account:ACC,question:q,history:hist}).then(function(r){
+      CHAT_BUSY=false;
+      var ans=(r.body&&r.body.ok)?(r.body.answer||""):((r.body&&r.body.error)||"回答に失敗しました。時間をおいて再度お試しください。");
+      CHAT.push({role:"assistant",content:ans}); chatSave(); chatRender();
+    }).catch(function(){
+      CHAT_BUSY=false;
+      CHAT.push({role:"assistant",content:"通信に失敗しました。電波の良い場所で再度お試しください。"}); chatSave(); chatRender();
     });
   }
   function collectNow(){
