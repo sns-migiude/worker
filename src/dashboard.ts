@@ -709,6 +709,11 @@ export const DASHBOARD_HTML = `<!doctype html>
           <div id="uikit-wait"></div>
         </div>
       </section>
+      <div style="margin-top:28px;padding-top:14px;border-top:1px solid var(--border);font-size:12px;text-align:center;opacity:.7">
+        <a href="https://join.sns-migiude.com/terms" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">利用規約</a>
+        ・ <a href="https://join.sns-migiude.com/privacy" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">プライバシーポリシー</a>
+        ／ SNSの右腕
+      </div>
     </div>
   </div>
 </div>
