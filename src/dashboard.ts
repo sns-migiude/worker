@@ -2338,15 +2338,15 @@ export const DASHBOARD_HTML = `<!doctype html>
       USAGE_MONTH = b.month_label || USAGE_MONTH || curYM();
       if ($("usageMonthLabel")) $("usageMonthLabel").textContent = fmtYM(USAGE_MONTH)+(b.is_current?"（今月）":"");
       if ($("usageNextBtn")) $("usageNextBtn").style.visibility = b.can_next ? "visible" : "hidden";
-      // 着地予想（今月のみ）＝実績＋残り日数×定常コスト（スケジュール連動）。毎月の定常目安も併記。
-      if ($("usageForecast")){
-        if (b.forecast_jpy!=null){
-          var remain = Math.max(0,(b.days_in_month||0)-(b.days_elapsed||0));
-          var oneTime = (b.one_time_jpy>0) ? "<div class='note'>うち初期費用 約 ¥"+comma(b.one_time_jpy)+"（過去ポストの学習など・初月だけ）</div>" : "";
-          var steady = (b.steady_monthly_jpy!=null) ? "<div class='note' style='margin-top:8px'>毎月の目安（定常）：<b>約 ¥"+comma(b.steady_monthly_jpy)+" ／月</b> <span style='opacity:.7'>初期費用を除いた、毎月だいたいの額</span></div>" : "";
-          $("usageForecast").innerHTML = "<div class='card' style='border-left:3px solid var(--accent)'><div class='note'>今月の着地予想</div><div style='font-size:22px;font-weight:700;color:var(--accent-strong);margin:2px 0'>約 ¥"+comma(b.forecast_jpy)+"</div><div class='note'>実績 ＋ 残り"+remain+"日ぶんを、設定スケジュール（1日"+(b.daily_frequency||0)+"本）から概算。</div>"+oneTime+steady+"</div>";
-        } else { $("usageForecast").innerHTML = ""; }
+      // 予想（着地＋定常）セクション。現在(実績)→予想→全期間 の順で usageBody 内にまとめる。
+      function forecastSection(){
+        if (b.forecast_jpy==null) return "";
+        var remain = Math.max(0,(b.days_in_month||0)-(b.days_elapsed||0));
+        var oneTime = (b.one_time_jpy>0) ? "<div class='note'>うち初期費用 約 ¥"+comma(b.one_time_jpy)+"（過去ポストの学習など・初月だけ）</div>" : "";
+        var steady = (b.steady_monthly_jpy!=null) ? "<div class='note' style='margin-top:8px'>毎月の目安（定常）：<b>約 ¥"+comma(b.steady_monthly_jpy)+" ／月</b> <span style='opacity:.7'>初期費用を除いた、毎月だいたいの額</span></div>" : "";
+        return "<div class='card' style='border-left:3px solid var(--accent)'><h3 style='margin-top:0'>"+fmtYM(USAGE_MONTH)+"の予想利用料の目安</h3><div style='font-size:22px;font-weight:700;color:var(--accent-strong);margin:2px 0'>約 ¥"+comma(b.forecast_jpy)+"</div><div class='note'>実績 ＋ 残り"+remain+"日ぶんを、設定スケジュール（1日"+(b.daily_frequency||0)+"本）から概算。</div>"+oneTime+steady+"</div>";
       }
+      if ($("usageForecast")) $("usageForecast").innerHTML = ""; // 予想はusageBody内に移動
       function row(label, cnt, jpy, unit){ return "<tr><td>"+label+"</td><td class='c'>"+comma(cnt||0)+" "+(unit||"回")+"</td><td class='c'>約 ¥"+comma(jpy||0)+"</td></tr>"; }
       function tbl(title, d){
         d=d||{};
@@ -2363,7 +2363,9 @@ export const DASHBOARD_HTML = `<!doctype html>
           + "<tr class='sum'><td>合計の目安</td><td></td><td class='c'>約 ¥"+comma(d.total_jpy||0)+"</td></tr>"
           + "</table></div>";
       }
-      if ($("usageBody")) $("usageBody").innerHTML = tbl(fmtYM(USAGE_MONTH)+"の目安", m) + tbl("累計の目安（全期間）", t);
+      // 今月＝「現在利用料（実績）」＋「予想利用料」に分割。過去月は実績のみ。全期間は「これまでの利用料」。
+      var curTitle = fmtYM(USAGE_MONTH)+(b.is_current?"の現在利用料の目安":"の利用料の目安");
+      if ($("usageBody")) $("usageBody").innerHTML = tbl(curTitle, m) + (b.is_current?forecastSection():"") + tbl("これまでの利用料の目安（全期間）", t);
       if ($("usageAssume")){
         var ml=(a.ai_models||[]).map(function(x){ return "・"+x.label+"：入力 $"+x.in_usd+"／出力 $"+x.out_usd+"（100万トークンあたり）"; }).join("<br>");
         var fxNote = a.usdjpy_fallback
