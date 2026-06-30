@@ -1390,18 +1390,48 @@ export default {
         return out;
       };
       const kindsM = await kindAgg(mB, " AND created_at>=? AND created_at<?");
-      const kindsT = await kindAgg(aB, "");
-      const genM = kindsM["generate"] || { jpy: 0, calls: 0 };
-      const genT = kindsT["generate"] || { jpy: 0, calls: 0 };
       const execM = kindsM["exec_note"] || { jpy: 0, calls: 0 };
-      const DEFAULT_GEN_JPY = 5; // generate実測がまだ無い間だけ使う「1生成あたり」の概算
-      // 1生成あたりの実測単価（今月→無ければ全期間→無ければ既定）。量はスケジュールで確定するので初日から安定。
-      const avgGenJpy = genM.calls > 0 ? genM.jpy / genM.calls : (genT.calls > 0 ? genT.jpy / genT.calls : DEFAULT_GEN_JPY);
+
+      // ── 本生成(generate)の1日あたりコスト：ハイブリッド ──
+      // 直近14日を日別に集計し、「初期構築・再学習の山（生成コール数が異常に多い日）」を除いた“通常運転日”の平均＝実測ペース。
+      // 通常運転日がまだ無ければ スケジュール推定（1日freq本 × 1本あたり概算）。使うほど実測に寄る。
+      // ※1回の生成APIで複数本まとめて作るので「1回あたり×本数」は使わない。日別の実コストで見る。
+      const cycleDays = Math.max(1, acctRow?.cycle_days ?? 3);
+      const PER_POST_JPY = 10; // 1本あたりの概算（Sonnet 5・スケジュール推定の単価）。実測が無い間だけ使う
+      let genDailyJpy = freq * PER_POST_JPY;
+      let genBasis: "observed" | "schedule" = "schedule";
+      try {
+        const gr = await env.DB.prepare(
+          `SELECT date(created_at) AS d, model, COUNT(*) AS calls,
+                  COALESCE(SUM(in_tokens),0) AS in_t, COALESCE(SUM(cached_tokens),0) AS cached_t, COALESCE(SUM(out_tokens),0) AS out_t
+             FROM claude_usage WHERE account_id=? AND kind='generate' AND created_at >= datetime('now','-14 days')
+             GROUP BY d, model`
+        ).bind(acc).all<{ d: string; model: string; calls: number; in_t: number; cached_t: number; out_t: number }>();
+        const dayJpy: Record<string, number> = {}, dayCalls: Record<string, number> = {};
+        for (const r of (gr.results ?? [])) {
+          const rate = MODEL_RATES[r.model] ?? { in: 5, out: 25, label: r.model };
+          const usd = ((r.in_t + r.cached_t * 0.1) / 1e6) * rate.in + (r.out_t / 1e6) * rate.out;
+          dayJpy[r.d] = (dayJpy[r.d] || 0) + usd * USDJPY;
+          dayCalls[r.d] = (dayCalls[r.d] || 0) + r.calls;
+        }
+        // 通常運転の1日（サイクル補充を含む）の生成コール上限。これを超える日＝初期構築/再学習の山とみなして除外。
+        const callCap = Math.max(freq * cycleDays * 2, 20);
+        const normalDays = Object.keys(dayCalls).filter((d) => dayCalls[d] <= callCap);
+        if (normalDays.length >= 1) {
+          genDailyJpy = normalDays.reduce((s, d) => s + dayJpy[d], 0) / normalDays.length;
+          genBasis = "observed";
+        }
+      } catch { /* テーブル未作成等でもスケジュール推定で続行 */ }
+
       const readsPerDay = readsMonth / daysElapsed; // メトリクス取得の実測日平均
       const execPerDay = execM.jpy / daysElapsed;   // 学習AI(exec_note)を日割り
-      // 1日あたりの定常コスト＝X投稿＋本生成（量は確定×単価は実測）＋メトリクス取得＋学習AI。
+      // 1日あたりの定常コスト＝X投稿(確定)＋本生成(ハイブリッド)＋メトリクス取得(実測日割)＋学習AI(実測日割)。
       // ※ learn_read（過去ポスト学習の読み取り）は初月だけの一回きりとみなし、定常には含めない。
-      const steadyDailyJpy = freq * xPostJpy + freq * avgGenJpy + readsPerDay * xReadJpy + execPerDay;
+      const xPostComponent = Math.round(freq * xPostJpy);
+      const genComponent = Math.round(genDailyJpy);
+      const readsComponent = Math.round(readsPerDay * xReadJpy);
+      const learnComponent = Math.round(execPerDay);
+      const steadyDailyJpy = freq * xPostJpy + genDailyJpy + readsPerDay * xReadJpy + execPerDay;
       const remainingDays = isCurrent ? Math.max(0, daysInMonth - daysElapsed) : 0;
       // 今月の着地＝これまでの実績（一回きり込み）＋残り日数×定常コスト。
       const forecastJpy = isCurrent ? Math.round(monthCalc.total_jpy + remainingDays * steadyDailyJpy) : null;
@@ -1420,6 +1450,15 @@ export default {
         steady_monthly_jpy: steadyMonthlyJpy, // 毎月の定常目安（初期費用なし）
         steady_daily_jpy: isCurrent ? Math.round(steadyDailyJpy) : null,
         one_time_jpy: oneTimeJpy, // 初月だけの一回きり費用の目安
+        forecast_detail: isCurrent ? {
+          actual_so_far: monthCalc.total_jpy, // これまでの実績（今月・一回きり込み）
+          one_time: monthCalc.learn_jpy,      // うち初期費用
+          remaining_days: remainingDays,
+          steady_daily: Math.round(steadyDailyJpy),
+          daily: { x_post: xPostComponent, gen: genComponent, reads: readsComponent, learn: learnComponent },
+          gen_basis: genBasis, // "observed"=実測ペース / "schedule"=スケジュール推定
+          freq: freq,
+        } : null,
         assumptions: {
           x_post_usd: X_POST_USD,
           x_read_usd: X_READ_USD,

@@ -2341,10 +2341,31 @@ export const DASHBOARD_HTML = `<!doctype html>
       // 予想（着地＋定常）セクション。現在(実績)→予想→全期間 の順で usageBody 内にまとめる。
       function forecastSection(){
         if (b.forecast_jpy==null) return "";
-        var remain = Math.max(0,(b.days_in_month||0)-(b.days_elapsed||0));
+        var d = b.forecast_detail||{}, dd = d.daily||{};
+        var remain = (d.remaining_days!=null)?d.remaining_days:Math.max(0,(b.days_in_month||0)-(b.days_elapsed||0));
+        var steadyDaily = d.steady_daily||0;
         var oneTime = (b.one_time_jpy>0) ? "<div class='note'>うち初期費用 約 ¥"+comma(b.one_time_jpy)+"（過去ポストの学習など・初月だけ）</div>" : "";
         var steady = (b.steady_monthly_jpy!=null) ? "<div class='note' style='margin-top:8px'>毎月の目安（定常）：<b>約 ¥"+comma(b.steady_monthly_jpy)+" ／月</b> <span style='opacity:.7'>初期費用を除いた、毎月だいたいの額</span></div>" : "";
-        return "<div class='card' style='border-left:3px solid var(--accent)'><h3 style='margin-top:0'>"+fmtYM(USAGE_MONTH)+"の予想利用料の目安</h3><div style='font-size:22px;font-weight:700;color:var(--accent-strong);margin:2px 0'>約 ¥"+comma(b.forecast_jpy)+"</div><div class='note'>実績 ＋ 残り"+remain+"日ぶんを、設定スケジュール（1日"+(b.daily_frequency||0)+"本）から概算。</div>"+oneTime+steady+"</div>";
+        var genNote = (d.gen_basis==="schedule") ? " <span class='note'>※概算</span>" : "";
+        var basisLine = (d.gen_basis==="schedule")
+          ? "<div class='note' style='margin-top:6px;opacity:.8'>※本生成は設定スケジュールからの概算です。通常運転が数日たまると実際の利用ペースに切り替わり、精度が上がります。</div>"
+          : "<div class='note' style='margin-top:6px;opacity:.8'>※本生成は直近の実際の利用ペースから算出（初期セットアップ分は除外）。</div>";
+        var detail =
+            "<table class='usage' style='margin-top:6px'>"
+          + "<tr><td>これまでの実績（今月）</td><td class='c'>約 ¥"+comma(d.actual_so_far||0)+"</td></tr>"
+          + ((d.one_time>0)?"<tr><td class='note' style='padding-left:14px'>うち初期費用（初月のみ）</td><td class='c note'>約 ¥"+comma(d.one_time)+"</td></tr>":"")
+          + "<tr><td>残り "+remain+"日 × 定常 ¥"+comma(steadyDaily)+"/日</td><td class='c'>約 ¥"+comma(remain*steadyDaily)+"</td></tr>"
+          + "<tr class='sum'><td>着地予想</td><td class='c'>約 ¥"+comma(b.forecast_jpy)+"</td></tr>"
+          + "</table>"
+          + "<div class='note' style='margin-top:8px'><b>定常コスト（1日あたり）の内訳</b></div>"
+          + "<table class='usage' style='margin-top:4px'>"
+          + "<tr><td>X投稿（1日"+(d.freq||0)+"本）</td><td class='c'>約 ¥"+comma(dd.x_post)+"</td></tr>"
+          + "<tr><td>本生成（Sonnet 5）"+genNote+"</td><td class='c'>約 ¥"+comma(dd.gen)+"</td></tr>"
+          + "<tr><td>メトリクス取得</td><td class='c'>約 ¥"+comma(dd.reads)+"</td></tr>"
+          + "<tr><td>学習AI</td><td class='c'>約 ¥"+comma(dd.learn)+"</td></tr>"
+          + "<tr class='sum'><td>定常 計</td><td class='c'>約 ¥"+comma(steadyDaily)+" /日</td></tr>"
+          + "</table>"+basisLine;
+        return "<div class='card' style='border-left:3px solid var(--accent)'><h3 style='margin-top:0'>"+fmtYM(USAGE_MONTH)+"の予想利用料の目安</h3><div style='font-size:22px;font-weight:700;color:var(--accent-strong);margin:2px 0'>約 ¥"+comma(b.forecast_jpy)+"</div><div class='note'>実績 ＋ 残り"+remain+"日ぶんを、設定スケジュール（1日"+(b.daily_frequency||0)+"本）から概算。</div>"+oneTime+steady+"<details style='margin-top:10px'><summary style='cursor:pointer;color:var(--accent-strong);font-size:13px'>根拠の明細を見る</summary>"+detail+"</details></div>";
       }
       if ($("usageForecast")) $("usageForecast").innerHTML = ""; // 予想はusageBody内に移動
       function row(label, cnt, jpy, unit){ return "<tr><td>"+label+"</td><td class='c'>"+comma(cnt||0)+" "+(unit||"回")+"</td><td class='c'>約 ¥"+comma(jpy||0)+"</td></tr>"; }
