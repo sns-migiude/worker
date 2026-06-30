@@ -2325,7 +2325,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   }
   // 利用APIコストの目安（実測の利用回数 × 仮の単価）。月別で遡れる。
   var USAGE_MONTH=""; // 表示中の月 "YYYY-MM"（空=今月）
-  function curYM(){ var d=new Date(); return d.getUTCFullYear()+"-"+("0"+(d.getUTCMonth()+1)).slice(-2); }
+  function curYM(){ var d=new Date(Date.now()+9*3600*1000); return d.getUTCFullYear()+"-"+("0"+(d.getUTCMonth()+1)).slice(-2); } // JST(UTC+9)の今月
   function shiftYM(ym, delta){ var p=ym.split("-"); var y=+p[0], m=(+p[1]-1)+delta; y+=Math.floor(m/12); m=((m%12)+12)%12; return y+"-"+("0"+(m+1)).slice(-2); }
   function fmtYM(ym){ var p=(ym||"").split("-"); return p.length===2 ? (p[0]+"年"+(+p[1])+"月") : ""; }
   function usageNav(delta){ USAGE_MONTH = shiftYM(USAGE_MONTH||curYM(), delta); loadUsage(); }

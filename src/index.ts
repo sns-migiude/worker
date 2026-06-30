@@ -1266,20 +1266,26 @@ export default {
           return 0; // テーブル未作成等でも目安表示は止めない
         }
       };
-      // 対象月（?month=YYYY-MM、無指定は今月）。月境界はUTC（保存値がUTCのため）。
+      // 対象月（?month=YYYY-MM、無指定は今月）。表示も月境界もすべて日本時間(JST=UTC+9)で判定する。
+      // 保存値(posted_at/fetched_at/created_at)はUTC文字列なので、JSTの月境界をUTCに直して突き合わせる。
       const pad = (n: number) => String(n).padStart(2, "0");
+      const JST_MS = 9 * 60 * 60 * 1000;
       const now = new Date();
-      const curMonth = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}`;
+      const nowJst = new Date(now.getTime() + JST_MS); // JSTの壁時計をUTC getterで読むための寄せ
+      const curMonth = `${nowJst.getUTCFullYear()}-${pad(nowJst.getUTCMonth() + 1)}`;
       const mIn = url.searchParams.get("month") || "";
       const mKey = /^\d{4}-\d{2}$/.test(mIn) ? mIn : curMonth;
       const [yy, mm] = mKey.split("-").map(Number);
-      const start = `${mKey}-01 00:00:00`;
       const nextY = mm === 12 ? yy + 1 : yy;
       const nextM = mm === 12 ? 1 : mm + 1;
-      const end = `${nextY}-${pad(nextM)}-01 00:00:00`;
+      // JSTの月初00:00:00 を UTC の "YYYY-MM-DD HH:MM:SS" 文字列に（＝JST境界の9時間前）。保存値=UTCと突き合わせる。
+      const utcStamp = (d: Date) =>
+        `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+      const start = utcStamp(new Date(Date.UTC(yy, mm - 1, 1) - JST_MS));
+      const end = utcStamp(new Date(Date.UTC(nextY, nextM - 1, 1) - JST_MS));
       const isCurrent = mKey === curMonth;
       const daysInMonth = new Date(Date.UTC(nextY, nextM - 1, 1) - 86400000).getUTCDate();
-      const daysElapsed = isCurrent ? Math.max(1, now.getUTCDate()) : daysInMonth;
+      const daysElapsed = isCurrent ? Math.max(1, nowJst.getUTCDate()) : daysInMonth;
 
       // 書き込み（X投稿）＝posted本数＋連結の2本目。取り込み過去ポスト(historical)は除外。
       const writes = async (binds: unknown[], range: string) =>
