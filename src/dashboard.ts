@@ -186,7 +186,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     <div class="grp">計測</div>
     <div class="nav" data-s="cv" onclick="nav('cv')"><i class="ti ti-target-arrow"></i> クリック＆CV解析</div>
     <div class="grp">管理</div>
-    <div class="nav" data-s="invite" onclick="nav('invite')"><i class="ti ti-gift"></i> 仲間を招待</div>
+    <div class="nav" data-s="invite" id="nav-invite" onclick="nav('invite')" style="display:none"><i class="ti ti-gift"></i> 仲間を招待</div>
     <div class="nav" data-s="usage" onclick="nav('usage')"><i class="ti ti-receipt"></i> API料金の目安</div>
     <div class="nav" data-s="settings" onclick="nav('settings')"><i class="ti ti-settings"></i> アカウント設定</div>
     <div class="nav" data-s="help" onclick="nav('help')"><i class="ti ti-help"></i> ヘルプ</div>
@@ -871,8 +871,18 @@ export const DASHBOARD_HTML = `<!doctype html>
     IS_PREMIUM = !!s.x_premium;
     URL_UNLOCKED = !!s.url_posts;
     reviewCharLimit = s.char_limit||140;
-    if (s.onboarded){ showScreen("app"); hello(); nav("home"); }
+    if (s.onboarded){ showScreen("app"); hello(); nav("home"); refreshInviteNav(); }
     else { showScreen("tutorial"); renderTutorial(s); }
+  }
+  // 招待リンクは運営が開放した会員だけ。開放されていればメニューを出す（キャッシュで即時表示＋本部確認で更新）。
+  function refreshInviteNav(){
+    var el=$("nav-invite"); if(!el) return;
+    try{ if(localStorage.getItem("sns_invite_enabled")==="1") el.style.display="block"; }catch(e){}
+    api("GET","/api/invites").then(function(r){
+      var b=r.body||{}; var on=!!(b.ok && b.code);
+      el.style.display = on ? "block" : "none";
+      try{ localStorage.setItem("sns_invite_enabled", on?"1":"0"); }catch(e){}
+    });
   }
   function refreshTutorial(){ api("GET","/api/account/state?account="+ACC).then(function(r){ route(r.body||{}); }); }
   function tmsg(t, isOk){ var m=$("tmsg"); m.textContent=t||""; m.className="msg "+(isOk===false?"ng":"ok"); }
@@ -2113,6 +2123,13 @@ export const DASHBOARD_HTML = `<!doctype html>
     api("GET","/api/invites").then(function(r){
       var b=r.body||{}; INV=b;
       if(!b.ok || !b.code){
+        if(b.error==="not_enabled"){
+          // 開放されていない → メニューも隠す
+          var nv=$("nav-invite"); if(nv) nv.style.display="none";
+          try{ localStorage.setItem("sns_invite_enabled","0"); }catch(e){}
+          if(C) C.innerHTML="<div class='card'><div class='note' style='color:var(--text)'>この機能は現在ご利用いただけません。</div></div>";
+          return;
+        }
         var em = b.error==="not_registered" ? "本部との連携がまだ完了していません。先に「アカウント設定」でXとClaudeを連携してください。連携すると、あなた専用の招待コードが発行されます。" :
                  b.error==="honbu_unconfigured" ? "この環境では招待機能は使えません。" :
                  "招待コードを取得できませんでした。時間をおいて再度お試しください。";
