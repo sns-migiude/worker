@@ -29,7 +29,7 @@
     "POST_SLOTS_JST": "06:30,11:30,17:00,21:00",
     "METRICS_SLOT_JST": "05:00",
     "METRICS_WINDOW_DAYS": "14",
-    "GEN_MODEL": "claude-opus-4-8",
+    "GEN_MODEL": "claude-sonnet-5",
     "CYCLE_START_JST": "06:00",
     "ENV_LABEL": "",
     "POST_ENABLED": "1",

@@ -66,7 +66,7 @@ import { DASHBOARD_HTML } from "./dashboard";
 
 // ── このワーカーのコード版（2桁小数・0.01刻み 例 1.00→1.01→…→1.99→2.00）。本部の latest_code_version と数値で比べて「更新あり」を出す。 ──
 // リリース手順：公開リポ更新時にここを +0.01（大きい更新は +1.00 等）→ 本部コンソールで「最新版」を同じ数字に。
-const CODE_VERSION = "1.01";
+const CODE_VERSION = "1.02";
 
 const MAX_RETRY = 3;
 const USDJPY_FALLBACK = 155; // 取得できないときの概算レート
@@ -1308,6 +1308,7 @@ export default {
       // モデル別の100万トークンあたり単価（USD）。未知モデルはOpus単価で代用。
       const MODEL_RATES: Record<string, { in: number; out: number; label: string }> = {
         "claude-opus-4-8": { in: 5, out: 25, label: "AI生成（Opus・本生成）" },
+        "claude-sonnet-5": { in: 3, out: 15, label: "AI生成（Sonnet 5・本生成）" }, // 導入価格は $2/$10（〜2026/8/31）。目安は標準$3/$15で安全側
         "claude-haiku-4-5": { in: 1, out: 5, label: "AI下準備（Haiku・要約など）" },
       };
       // Claude利用をモデル別に集計し、実トークン×単価で円に。
