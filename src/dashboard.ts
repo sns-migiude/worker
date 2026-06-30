@@ -617,7 +617,8 @@ export const DASHBOARD_HTML = `<!doctype html>
 
         <div class="card" style="border-color:var(--accent)">
           <b><i class="ti ti-message-chatbot"></i> AIに聞く（操作サポート）</b>
-          <p class="note" style="margin:4px 0 8px;color:var(--text)">操作や仕組みについて、AIがこのアプリの仕様をもとに答えます。チャットは<b>右下のボタンからどの画面でも</b>開けます。💳 あなたのClaudeを使うため、1回あたり少額の料金が発生します。</p>
+          <p class="note" style="margin:4px 0 8px;color:var(--text)">操作や仕組みについて、AIがこのアプリの仕様をもとに答えます。チャットは<b>右下の💬ボタンからどの画面でも</b>開けます（会話の続きで聞き直しもOK）。</p>
+          <p class="note" style="margin:0 0 8px"><b>💳 回答はあなた自身が連携したClaude APIで生成されます。</b>そのため回答のたびに、あなたのClaudeにごく少額の料金が発生します（運営への支払いではありません）。</p>
           <div class="row"><button class="primary" onclick="chatOpen()"><i class="ti ti-message-chatbot"></i> AIチャットを開く</button></div>
         </div>
 
@@ -639,17 +640,27 @@ export const DASHBOARD_HTML = `<!doctype html>
         <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">「フォーカス」を選ぶと？</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)">「分析＆改善」で改善カードを選ぶと、次の作成からAIがその方針に寄せて下書きを作ります（例：効いている型を多めに）。選ばなければ「おまかせ」で、AIがバランスよく回します。</div></details>
 
         <h3 style="margin:18px 0 6px">型（パターン）について</h3>
-        <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">「型」とは？</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)">投稿の<b>組み立て方（切り口・引き・締め）</b>のことです。中身や文体はあなたのもので、型は「どう組み立てるか」だけを決めます。AIは反応の良い型を多めに使うようになります。</div></details>
-        <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">自分の型を作りたい／直したい</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)">「型の開発」で、イメージや参考ポストを入れるとAIが型をつくります。サンプルを添削・評価して鍛え、納得したら採用。登録済みの型は<b>「編集・再トレーニング」</b>でいつでも直せます。</div></details>
+        <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">「型」とは？</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)">投稿の<b>組み立て方（切り口・引き・締め）</b>のことです。中身や文体はあなたのもので、型は「どう組み立てるか」だけを決めます。型には<b>構造の違い</b>（短文／長文、単発／2連結スレッド、画像カードの有無）もあります。AIは反応の良い型を多めに使うようになります。</div></details>
+        <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">自分の型を作りたい／直したい</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)">「型の開発」で、<b>構造（短文／長文・単発／連結・画像有無）と切り口</b>を選び、イメージや参考ポストを入れるとAIが型をつくります。サンプルを添削・評価して鍛え、納得したら採用。登録済みの型は「型の管理」の<b>「編集・再トレーニング」</b>でいつでも直せます。</div></details>
+        <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">「型の検索（集合知）」って？</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)">会員みんなの実績で<b>「効く」と分かった型</b>を探して取り込めます。借りるのは<b>型（組み立て方）だけ</b>で、文章は常にあなたの文体で作られます。共有されるのは型の構造と反応の数値だけで、<b>本文・文体・ネタ・APIキーは一切送られません</b>。同期は自動です。</div></details>
+
+        <h3 style="margin:18px 0 6px">画像カード・誘導リンク</h3>
+        <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">投稿に画像（文字入り画像カード）を付けたい</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)">「画像カードの型」で<b>ON</b>にし、テーマ（色・フォント・ロゴ）を選びます。対応する型に画像付きの候補が並び、<b>文字は自動で画像に収まります</b>。</div></details>
+        <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">リンクへの誘導・クリックやCVの計測は？</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)">URL誘導ポストは<b>解放制</b>です。解放すると、登録したリンクへ誘導する投稿が作れ、<b>クリック数とコンバージョン（CV）を「クリック＆CV解析」で計測</b>できます。</div></details>
 
         <h3 style="margin:18px 0 6px">反応・料金</h3>
         <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">反応や伸びはどこで見る？</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)">「ダッシュボード」でフォロワーの推移といいね等の数字、直近の反応が見られます。型別・時間帯別の細かい成績は「分析＆改善」へ。数字は反応がたまってから出ます（自動取得・通常1日〜）。</div></details>
-        <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">料金はどれくらいかかる？</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)">「API料金の目安」で、今月の概算と着地予想が見られます（<b>あくまで目安</b>）。X APIとClaudeの利用に応じた従量です。AIの下準備は安いモデル、本番の生成は高品質モデル、と使い分けてムダを抑えています。</div></details>
+        <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">料金はどれくらいかかる？</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)">「API料金の目安」で、今月の概算と着地予想が見られます（<b>あくまで目安</b>）。かかるのは<b>あなた自身が契約したClaude APIとX APIの利用料だけ</b>（使った分のみ・運営への支払いはありません）。AIの下準備は安いモデル、本番の生成は高品質モデルと使い分けてムダを抑えています。<b>X(Twitter)のAPIは有料</b>（2026年2月以降は従量課金・読み取りも課金）、Cloudflareは無料枠で動きます。</div></details>
 
         <h3 style="margin:18px 0 6px">困ったとき</h3>
         <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">投稿されない／予約が進まない</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)">①「アカウント設定」でX・Claudeの<b>連携が有効か</b>確認 → ②「予約済み＆投稿済み」で<b>失敗（エラー）</b>が出ていないか確認（多くは文字数オーバーや鍵の期限切れ）。エラーは「直して再予約」で直せます。</div></details>
         <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">下書きが似てしまう／同じネタが続く</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)">直近の投稿とはネタが被らないように作っています。それでも続く場合は「学習データ＆サイクル」で<b>ネタ</b>や<b>発信の方向性</b>を足すと、引き出しが増えます。</div></details>
-        <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">困ったら</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)">迷ったら、まずは<b>手動承認モード</b>にして、出てきた下書きを1本ずつ確認するのが安心です。AIは投稿前に必ずあなたの承認を待ちます（手動モード時）。</div></details>
+        <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">困ったら</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)">迷ったら、まずは<b>手動承認モード</b>にして、出てきた下書きを1本ずつ確認するのが安心です。AIは投稿前に必ずあなたの承認を待ちます（手動モード時）。それでも分からないことは<b>右下の💬「AIに聞く」</b>へどうぞ。</div></details>
+
+        <h3 style="margin:18px 0 6px">データ・安全・停止</h3>
+        <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">鍵やデータの安全は？文体が乗っ取られたりしない？</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)">鍵（X・Claude）も投稿本文も、<b>すべてあなた自身のCloudflare内に暗号化して保存</b>され、運営はアクセスしません。文体のお手本は<b>あなたの過去投稿だけ</b>なので、文体が乗っ取られることはありません。集合知に出るのは型の構造と反応の数値だけで、本文・文体・ネタ・APIキーは送られません。</div></details>
+        <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">運営からのお知らせメール・配信停止は？</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)">「アカウント設定」でお知らせメールの宛先を登録できます。運営からの案内が届きます。<b>配信はいつでも停止</b>できます（メール内の配信停止リンクから）。</div></details>
+        <details class="card" style="margin:8px 0"><summary style="cursor:pointer;font-weight:500">止めたい・やめたいときは？</summary><div class="note" style="margin-top:8px;line-height:1.9;color:var(--text)"><b>承認モードを手動</b>にすれば、投稿前に必ず止まります。いつでも停止・退会できます。<a href="https://join.sns-migiude.com/terms" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline">利用規約</a>・<a href="https://join.sns-migiude.com/privacy" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline">プライバシーポリシー</a>もご確認ください。</div></details>
       </section>
 
       <section id="s-uikit" class="screen hidden">
@@ -761,7 +772,7 @@ export const DASHBOARD_HTML = `<!doctype html>
       <textarea id="chatQ" rows="1" placeholder="操作や仕組みを質問…（Enterで送信）" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend();}"></textarea>
       <button class="primary" onclick="chatSend()" title="送信"><i class="ti ti-send"></i></button>
     </div>
-    <div class="chat-foot"><div class="note">回答はあなたのClaudeで生成（1回ごとに少額の料金）。仕様書にある操作のみ答えます。</div></div>
+    <div class="chat-foot"><div class="note">💳 回答は<b>あなた自身が連携したClaude API</b>で生成されます（回答ごとにあなたのClaudeへ少額の料金。運営への支払いではありません）。このアプリの仕様にある操作のみ答えます。</div></div>
   </aside>
 </div>
 
