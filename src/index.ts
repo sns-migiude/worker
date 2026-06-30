@@ -64,21 +64,9 @@ import { distillCardText } from "./generate";
 import { nextQueueSlot, reflowQueue, getAccountSlots, accountPrepHHMM, sqlUtc } from "./schedule";
 import { DASHBOARD_HTML } from "./dashboard";
 
-// ── このワーカーのコード版（"メジャー.マイナー" 例 1.00→1.01→…→1.99→2.00）。本部の latest_code_version と比べて「更新あり」を出す。 ──
-// リリース手順：公開リポ更新時にここを上げる（小さい改善はマイナー、大きいものはメジャー）→ 本部コンソールで「最新版」を同じ文字列に。
+// ── このワーカーのコード版（2桁小数・0.01刻み 例 1.00→1.01→…→1.99→2.00）。本部の latest_code_version と数値で比べて「更新あり」を出す。 ──
+// リリース手順：公開リポ更新時にここを +0.01（大きい更新は +1.00 等）→ 本部コンソールで「最新版」を同じ数字に。
 const CODE_VERSION = "1.00";
-// バージョン文字列を区切りごとに数値比較（a>b → 1 / a<b → -1 / 同 → 0）。"1.2" < "1.10" も正しく判定。
-function verCmp(a: string, b: string): number {
-  const pa = String(a || "").split(".");
-  const pb = String(b || "").split(".");
-  const n = Math.max(pa.length, pb.length);
-  for (let i = 0; i < n; i++) {
-    const x = parseInt(pa[i] || "0", 10) || 0;
-    const y = parseInt(pb[i] || "0", 10) || 0;
-    if (x !== y) return x > y ? 1 : -1;
-  }
-  return 0;
-}
 
 const MAX_RETRY = 3;
 const USDJPY_FALLBACK = 155; // 取得できないときの概算レート
@@ -690,7 +678,7 @@ export default {
       const updateNote = (await getConfig(env, "update_note")) || "";
       return json({
         ok: true, account_id: uid, handle: acc?.handle ?? null, onboarded, email: email ?? null,
-        version: CODE_VERSION, latest_version: latest, update_available: verCmp(latest, CODE_VERSION) > 0, update_note: updateNote,
+        version: CODE_VERSION, latest_version: latest, update_available: (parseFloat(latest) || 0) > (parseFloat(CODE_VERSION) || 0), update_note: updateNote,
         update_url: "https://join.sns-migiude.com/update",
       });
     }
