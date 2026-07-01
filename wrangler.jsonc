@@ -39,8 +39,8 @@
   }
 
   // 会員が入力するシークレット（Deployボタンのセットアップ画面 or `wrangler secret put`）:
-  //   API_TOKEN         … ダッシュボードの合言葉（会員が決める）
+  //   LOGIN_PASSWORD    … ダッシュボードの合言葉（会員が決める・XのAPIキーとは別物。旧名API_TOKENも後方互換で可）
   //   ANTHROPIC_API_KEY … Claude APIキー（会員所有）
-  //   CREDS_KEY         … D1のX鍵暗号化用の鍵素材（会員が決める。未設定ならAPI_TOKENで代用）
+  //   CREDS_KEY         … D1のX鍵暗号化用の鍵素材（会員が決める。未設定なら合言葉で代用）
   // ※ X(Twitter)のAPIキーは、デプロイ後にダッシュボードの「アカウント設定」から連携（ここでは不要）
 }

@@ -34,7 +34,7 @@ export async function ensureHonbuToken(env: Env, memberId: string, label: string
 // ライセンス有効化：招待コード付きで本部に会員登録する。結果を精密に返す（オンボの同意ゲート用）。
 //   ok=true：登録成功 or 既登録（どちらも先へ進んでよい）。ok=false＋error：招待コード不正・本部不通など。
 export async function registerWithHonbu(
-  env: Env, memberId: string, label: string | null, email: string | null, inviteCode: string,
+  env: Env, memberId: string, label: string | null, email: string | null, inviteCode: string, workerUrl?: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
   if (!env.HONBU_URL) return { ok: false, error: "honbu_unconfigured" }; // 招待コード認証＝共有トークンは必須でない
   try {
@@ -43,7 +43,7 @@ export async function registerWithHonbu(
     const res = await fetch(`${env.HONBU_URL}/hq/register`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ member_id: memberId, label, email, invite_code: inviteCode }),
+      body: JSON.stringify({ member_id: memberId, label, email, invite_code: inviteCode, worker_url: workerUrl || null }),
     });
     const d = (await res.json().catch(() => ({}))) as { ok?: boolean; token?: string; error?: string };
     if (res.ok && d.token) { await setConfig(env, "honbu_token", d.token); return { ok: true }; }

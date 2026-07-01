@@ -1,5 +1,5 @@
 // 簡易暗号（AES-256-GCM）。会員がUIから入れた鍵(creds)を、D1に保存する前に暗号化する。
-// D1には「暗号文」だけが載る。復号鍵の素材は env.CREDS_KEY（無ければ API_TOKEN で代用）。
+// D1には「暗号文」だけが載る。復号鍵の素材は env.CREDS_KEY（無ければ合言葉 LOGIN_PASSWORD／旧API_TOKEN で代用）。
 // ※ Phase 1の現実解。将来は会員ごと/環境ごとの専用CREDS_KEYにする。
 
 const enc = new TextEncoder();

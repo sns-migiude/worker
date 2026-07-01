@@ -12,7 +12,7 @@
 1. 上のボタン → Cloudflareにログイン（無料アカウントでOK）
 2. **Worker / D1 / R2 が自動で作られます**（あなたのアカウント上）
 3. 途中で**シークレット**を聞かれます：
-   - `API_TOKEN`（ダッシュボードの合言葉。自分で決める）
+   - `LOGIN_PASSWORD`（ダッシュボードの合言葉。自分で決める・**XのAPIキーとは別物**）
    - `ANTHROPIC_API_KEY`（Claude APIキー）
    - `CREDS_KEY`（X鍵の暗号化用。自分で決める）
 4. デプロイ完了 → あなたのWorkerのURLを開く

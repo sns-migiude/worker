@@ -66,7 +66,7 @@ import { DASHBOARD_HTML } from "./dashboard";
 
 // ── このワーカーのコード版（2桁小数・0.01刻み 例 1.00→1.01→…→1.99→2.00）。本部の latest_code_version と数値で比べて「更新あり」を出す。 ──
 // リリース手順：公開リポ更新時にここを +0.01（大きい更新は +1.00 等）→ 本部コンソールで「最新版」を同じ数字に。
-const CODE_VERSION = "1.04";
+const CODE_VERSION = "1.05";
 
 const MAX_RETRY = 3;
 const USDJPY_FALLBACK = 155; // 取得できないときの概算レート
@@ -658,8 +658,10 @@ export default {
     }
 
     // 認証（APIはBearerトークン必須。ダッシュボードのHTMLはこの手前で返す）
+    // 合言葉は新名 LOGIN_PASSWORD を優先・旧名 API_TOKEN は後方互換。
+    const loginSecret = env.LOGIN_PASSWORD ?? env.API_TOKEN;
     const auth = req.headers.get("Authorization");
-    if (!env.API_TOKEN || auth !== `Bearer ${env.API_TOKEN}`) {
+    if (!loginSecret || auth !== `Bearer ${loginSecret}`) {
       return json({ error: "unauthorized" }, 401);
     }
 
@@ -1243,7 +1245,7 @@ export default {
       await setConfig(env, "consent_at", new Date().toISOString());
       await setConfig(env, "consent_version", "1");
       await setConfig(env, "invite_code", code);
-      const r = await registerWithHonbu(env, uid, acc?.handle ?? null, email, code);
+      const r = await registerWithHonbu(env, uid, acc?.handle ?? null, email, code, url.origin);
       if (!r.ok) {
         const msg = r.error === "invite_invalid" ? "招待コードが正しくありません。確認して入れ直してください。"
           : r.error === "invite_used_up" ? "この招待コードは使用上限に達しています。運営にお問い合わせください。"

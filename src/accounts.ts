@@ -10,8 +10,9 @@ import { decryptString } from "./crypto";
 
 export interface Env {
   DB: D1Database;
-  API_TOKEN: string;
-  CREDS_KEY?: string; // D1のcreds暗号化に使う鍵素材（無ければAPI_TOKENで代用）
+  LOGIN_PASSWORD?: string; // ログイン用の合言葉（新名）。XのAPIキーとは別物
+  API_TOKEN?: string;      // 旧名（後方互換：LOGIN_PASSWORD未設定なら従来どおりこれを使う）
+  CREDS_KEY?: string; // D1のcreds暗号化に使う鍵素材（無ければ合言葉で代用）
   ACCOUNTS_CREDS?: string; // フォールバック用JSON（UI連携前の手動設定）
   ANTHROPIC_API_KEY?: string;
   GEN_MODEL?: string;
@@ -214,7 +215,7 @@ export async function resolveCreds(env: Env, accountId: string): Promise<Account
     .first<{ creds_enc: string }>();
   if (row && row.creds_enc) {
     try {
-      const json = await decryptString(row.creds_enc, env.CREDS_KEY ?? env.API_TOKEN ?? "");
+      const json = await decryptString(row.creds_enc, env.CREDS_KEY ?? env.API_TOKEN ?? env.LOGIN_PASSWORD ?? "");
       const parsed = JSON.parse(json);
       if (parsed && typeof parsed === "object") return parsed as AccountCreds;
     } catch {
@@ -222,6 +223,11 @@ export async function resolveCreds(env: Env, accountId: string): Promise<Account
     }
   }
   return allCreds(env)[accountId] ?? null;
+}
+
+// ログイン用の合言葉を解決（新名 LOGIN_PASSWORD を優先・旧名 API_TOKEN は後方互換）。
+export function loginSecret(env: Env): string {
+  return env.LOGIN_PASSWORD ?? env.API_TOKEN ?? "";
 }
 
 // X投稿に使う鍵。無ければ null（呼び出し側でスキップ）。
@@ -238,7 +244,7 @@ export async function saveCreds(
   creds: AccountCreds
 ): Promise<void> {
   const { encryptString } = await import("./crypto");
-  const enc = await encryptString(JSON.stringify(creds), env.CREDS_KEY ?? env.API_TOKEN ?? "");
+  const enc = await encryptString(JSON.stringify(creds), env.CREDS_KEY ?? env.API_TOKEN ?? env.LOGIN_PASSWORD ?? "");
   await env.DB.prepare(
     `INSERT INTO account_creds (account_id, creds_enc, updated_at)
      VALUES (?, ?, datetime('now'))

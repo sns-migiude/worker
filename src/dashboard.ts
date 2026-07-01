@@ -1,5 +1,5 @@
 // SNSの右腕 会員ダッシュボード（共通シェル v2・クリーン白/青）。
-// 会員目線・平易な日本語。合言葉(API_TOKEN)はブラウザのlocalStorageに保存。
+// 会員目線・平易な日本語。合言葉(LOGIN_PASSWORD／旧API_TOKEN)はブラウザのlocalStorageに保存。
 // ダークモードは将来：色は :root のCSS変数に集約してあるので後から差し込める。
 //
 // 注意：内側JSはバッククォートと ${ } を使わない。JS文字列内の改行は \\n。
@@ -158,6 +158,16 @@ export const DASHBOARD_HTML = `<!doctype html>
   <input id="tok" type="password" placeholder="あなたの合言葉" onkeydown="if(event.key==='Enter')saveToken()">
   <div class="row" style="margin-top:12px"><button class="primary" onclick="saveToken()">はじめる</button></div>
   <p id="loginErr" style="color:var(--danger);font-size:13px;margin:8px 0 0"></p>
+  <details style="margin-top:16px;font-size:13px;color:#6b7280">
+    <summary style="cursor:pointer">URL や 合言葉 を忘れた方へ</summary>
+    <div style="margin-top:8px;line-height:1.7">
+      <b>このページのURLを忘れたとき</b><br>
+      Cloudflareダッシュボード（<a href="https://dash.cloudflare.com" target="_blank" rel="noopener">dash.cloudflare.com</a>）→「Workers &amp; Pages」→ 自分のワーカーを開くと、いまのURLが表示されます。次回のためにブックマークしておくと安心です。
+      <div style="height:8px"></div>
+      <b>合言葉を忘れたとき</b><br>
+      合言葉は安全のため、あとから見ることはできません（新しく設定し直す形になります）。上のダッシュボードで 自分のワーカー →「設定」→「変数とシークレット」→ <code>LOGIN_PASSWORD</code>（旧版では <code>API_TOKEN</code>）を編集 → 新しい合言葉を保存 → デプロイ。次回からは新しい合言葉でログインしてください。
+    </div>
+  </details>
 </div>
 
 <div id="tutorial" class="hidden">
@@ -929,7 +939,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     IS_PREMIUM = !!s.x_premium;
     URL_UNLOCKED = !!s.url_posts;
     reviewCharLimit = s.char_limit||140;
-    if (s.onboarded){ showScreen("app"); hello(); nav("home"); refreshInviteNav(); }
+    if (s.onboarded){ showScreen("app"); hello(); nav(startScreen()); refreshInviteNav(); }
     else { showScreen("tutorial"); renderTutorial(s); }
   }
   // 招待リンクは運営が開放した会員だけ。開放されていればメニューを出す（キャッシュで即時表示＋本部確認で更新）。
@@ -1422,7 +1432,12 @@ export const DASHBOARD_HTML = `<!doctype html>
     if (s==="invite"){ loadInvites(); }
     if (s==="feedback"){ fbKindChange(); if($("fbResult")) $("fbResult").innerHTML=""; }
     if (s==="uikit"){ loadUikit(); }
+    try{ if(location.hash!=="#"+s) history.replaceState(null,"","#"+s); }catch(e){}
   }
+  // メールからのディープリンク用：URLの #画面名 で対象画面を直接開く（例 …workers.dev/#analysis）。
+  var HASH_SCREENS = "home review scheduled learn analysis newtype typesearch typemanage cards cv invite usage settings help feedback".split(" ");
+  function startScreen(){ var h=(location.hash||"").replace(/^#/,""); return HASH_SCREENS.indexOf(h)>=0 ? h : "home"; }
+  window.addEventListener("hashchange", function(){ if(!$("app")||$("app").classList.contains("hidden")) return; var h=(location.hash||"").replace(/^#/,""); if(HASH_SCREENS.indexOf(h)>=0) nav(h); });
   // ── クリック→CV：誘導先URL別の クリック(X)・CV(計測ピクセル)・CVR・売上 ──
   function cvSnippet(){
     // 誘導先の完了ページに貼るタグ。sr（投稿リンクに付く印）をURL/localStorageから拾って /cv に通知。
