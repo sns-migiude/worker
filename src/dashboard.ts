@@ -2377,7 +2377,10 @@ export const DASHBOARD_HTML = `<!doctype html>
       h+=aTile("平均リポスト", comma(s.avg_reposts));
       h+=aTile("平均反応率", s.avg_er_pct+"%");
       if(s.sum_link_clicks>0) h+=aTile("クリック計", comma(s.sum_link_clicks));
-      h+="</div></div>";
+      if(s.reply_classified>=5) h+=aTile("反応の中身","ポジ"+s.reply_pos_pct+"% / ネガ"+s.reply_neg_pct+"%");
+      h+="</div>";
+      if(s.reply_classified>=5) h+="<div class='note' style='margin-top:8px'>他の人からのリプの中身（ポジ/ネガ）を反応率に反映しています。ポジは少し高め・ネガは少し低めに評価（±20%・自分のリプは除外）。件数が少ないうちは反映しません。</div>";
+      h+="</div>";
       // 改善のヒント（常時3枚のカード＋手動で別案ローテ）
       ANALYSIS_CARDS=b.cards||[]; ANALYSIS_FOCUS=b.focus||null; CARD_OFFSET=0;
       if(ANALYSIS_CARDS.length || ANALYSIS_FOCUS){

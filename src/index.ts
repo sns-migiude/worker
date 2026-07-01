@@ -66,7 +66,7 @@ import { DASHBOARD_HTML } from "./dashboard";
 
 // ── このワーカーのコード版（2桁小数・0.01刻み 例 1.00→1.01→…→1.99→2.00）。本部の latest_code_version と数値で比べて「更新あり」を出す。 ──
 // リリース手順：公開リポ更新時にここを +0.01（大きい更新は +1.00 等）→ 本部コンソールで「最新版」を同じ数字に。
-const CODE_VERSION = "1.05";
+const CODE_VERSION = "1.06";
 
 const MAX_RETRY = 3;
 const USDJPY_FALLBACK = 155; // 取得できないときの概算レート
@@ -1766,6 +1766,21 @@ export default {
       const num = (x: number | null) => (typeof x === "number" ? x : 0);
       const erPct = (x: number | null) => Math.round(num(x) * 1000) / 10; // er_raw(比) → %（小数1桁）
 
+      // 反応の中身（ポジ/ネガ）の内訳。成績の弱補正（ポジ1.2/中立1.0/ネガ0.8）に使っている分を可視化。
+      const senti = { pos: 0, neu: 0, neg: 0 };
+      try {
+        const sr = await env.DB.prepare(
+          `SELECT r.sentiment AS s, COUNT(*) AS n FROM replies r
+             JOIN posts p ON p.id = r.post_id
+            WHERE r.account_id = ? AND r.is_self = 0 AND r.sentiment IS NOT NULL AND p.status = 'posted'${periodSql}
+            GROUP BY r.sentiment`
+        ).bind(acc).all<{ s: string; n: number }>();
+        for (const row of sr.results ?? []) {
+          if (row.s === "pos") senti.pos = row.n; else if (row.s === "neg") senti.neg = row.n; else senti.neu = row.n;
+        }
+      } catch { /* sentiment未対応の古いDBでも分析は動かす */ }
+      const sentiTotal = senti.pos + senti.neu + senti.neg;
+
       // サマリー
       const summary = {
         posts: rows.length,
@@ -1774,6 +1789,11 @@ export default {
         avg_reposts: Math.round(avg(rows.map((r) => num(r.reposts)))),
         avg_er_pct: Math.round(avg(rows.map((r) => num(r.er_raw))) * 1000) / 10,
         sum_link_clicks: rows.reduce((s, r) => s + num(r.url_link_clicks), 0),
+        reply_classified: sentiTotal,
+        reply_pos: senti.pos,
+        reply_neg: senti.neg,
+        reply_pos_pct: sentiTotal ? Math.round((senti.pos / sentiTotal) * 100) : null,
+        reply_neg_pct: sentiTotal ? Math.round((senti.neg / sentiTotal) * 100) : null,
       };
       // 1グループ（型・時間帯）の平均指標。順位の公平性のため正規化er中央値(score)も付ける。
       type Row = typeof rows[number];

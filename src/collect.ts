@@ -12,10 +12,17 @@ import {
   type XCreds,
   type TweetMetrics,
 } from "./xapi";
-import { loadActiveAccounts, xCreds, type Account, type Env } from "./accounts";
+import { loadActiveAccounts, xCreds, resolveCreds, type Account, type Env } from "./accounts";
+import { callClaude, extractJson } from "./claude";
+import { logClaudeUsage } from "./usage";
 
 // この時間が過ぎたら成果が安定したとみなす（初速の過大評価を避ける・06章）
 const SETTLE_HOURS = 48;
+
+// 反応の内容(ポジ/ネガ)による弱い補正（A案・角を残す）。ポジ1.2 / 中立1.0 / ネガ0.8 ＝ 6:4。
+// 中立を1.0に据えるので「リプ全体の量感は今のまま・中身で±20%だけ傾く」。会員ローカルのみ（本部に送らない）。
+const REPLY_W: Record<string, number> = { pos: 1.2, neu: 1.0, neg: 0.8 };
+const SENTIMENT_MIN_SAMPLE = 5; // 判定済みリプがこれ未満なら中立扱い（少数はノイズなので補正しない）
 
 function median(nums: number[]): number {
   const a = nums.filter((n) => Number.isFinite(n)).sort((x, y) => x - y);
@@ -70,6 +77,26 @@ async function collectMetricsForAccount(
     .all<{ post_id: number; n: number }>();
   for (const row of sr.results) if (row.post_id != null) selfReplies.set(row.post_id, row.n);
 
+  // 他者リプの内容内訳（post_id → {pos,neu,neg}）。判定済みだけ数える。弱補正に使う。
+  // sentiment列が無い古いDB（migration適用前）でも成績収集を止めないよう try で保護＝そのまま中立扱い。
+  const senti = new Map<number, { pos: number; neu: number; neg: number }>();
+  try {
+    const sc = await env.DB.prepare(
+      `SELECT post_id, sentiment, COUNT(*) AS n FROM replies
+       WHERE account_id = ? AND is_self = 0 AND sentiment IS NOT NULL GROUP BY post_id, sentiment`
+    )
+      .bind(account.id)
+      .all<{ post_id: number; sentiment: string; n: number }>();
+    for (const row of sc.results) {
+      if (row.post_id == null) continue;
+      const e = senti.get(row.post_id) ?? { pos: 0, neu: 0, neg: 0 };
+      if (row.sentiment === "pos") e.pos = row.n;
+      else if (row.sentiment === "neg") e.neg = row.n;
+      else e.neu = row.n;
+      senti.set(row.post_id, e);
+    }
+  } catch { /* sentiment未対応の古いDB（migration前）＝補正なしで続行 */ }
+
   // メトリクス取得（100件ずつ）→ er_raw と settled を計算
   const ids = posts.results.map((p) => p.platform_post_id);
   const collected: Array<{ post: PostRow; m: TweetMetrics; erRaw: number; settled: number }> = [];
@@ -82,12 +109,20 @@ async function collectMetricsForAccount(
       const imp = m.impressions ?? 0;
       const selfN = selfReplies.get(post.id) ?? 0;
       const adjReplies = Math.max(0, (m.replies ?? 0) - selfN); // 自リプを引く
+      // 反応内容による弱補正：判定済みリプの平均重み(ポジ1.2/中立1.0/ネガ0.8)を全リプに掛ける。少数(<5)は中立。
+      const sm = senti.get(post.id) ?? { pos: 0, neu: 0, neg: 0 };
+      const classified = sm.pos + sm.neu + sm.neg;
+      const avgW =
+        classified >= SENTIMENT_MIN_SAMPLE
+          ? (REPLY_W.pos * sm.pos + REPLY_W.neu * sm.neu + REPLY_W.neg * sm.neg) / classified
+          : 1.0;
+      const weightedReplies = adjReplies * avgW;
       const engagements =
         (m.likes ?? 0) +
         (m.retweets ?? 0) +
         (m.quotes ?? 0) +
         (m.bookmarks ?? 0) +
-        adjReplies;
+        weightedReplies;
       const erRaw = imp > 0 ? engagements / imp : 0;
       const ageHours = (Date.now() - parseSqlUtc(post.posted_at)) / 3600_000;
       const settled = ageHours >= SETTLE_HOURS ? 1 : 0;
@@ -152,11 +187,14 @@ export async function collectForAccount(env: Env, account: Account): Promise<num
   if (!account.platforms.includes("x")) return 0;
   const creds = await xCreds(env, account.id);
   if (!creds) return 0;
+  // 先にリプ取得＆内容判定 → そのあとメトリクス（弱補正に最新の判定を反映させる）
+  try { await collectRepliesForAccount(env, account, creds); }
+  catch (e) { console.error(`[${account.id}] リプ収集失敗: ${e instanceof Error ? e.message : e}`); }
+  try { await classifyRepliesForAccount(env, account); }
+  catch (e) { console.error(`[${account.id}] リプ内容判定失敗: ${e instanceof Error ? e.message : e}`); }
   let saved = 0;
   try { saved = await collectMetricsForAccount(env, account, creds); }
   catch (e) { console.error(`[${account.id}] メトリクス収集失敗: ${e instanceof Error ? e.message : e}`); }
-  try { await collectRepliesForAccount(env, account, creds); }
-  catch (e) { console.error(`[${account.id}] リプ収集失敗: ${e instanceof Error ? e.message : e}`); }
   return saved;
 }
 
@@ -237,6 +275,54 @@ async function collectRepliesForAccount(
     }
   }
   return newReplies;
+}
+
+// ── リプの内容判定（ポジ/中立/ネガ・Haiku・会員ローカル）。成績の弱補正の材料。本部には一切送らない。 ──
+async function classifyRepliesForAccount(env: Env, account: Account): Promise<number> {
+  const claudeKey = (await resolveCreds(env, account.id))?.claudeKey || env.ANTHROPIC_API_KEY;
+  if (!claudeKey) return 0; // キーが無ければ判定しない（sentiment=NULL＝重み1.0の中立扱い）
+  const rows = await env.DB.prepare(
+    `SELECT id, text FROM replies
+     WHERE account_id = ? AND is_self = 0 AND sentiment IS NULL AND text IS NOT NULL AND text <> ''
+     ORDER BY id DESC LIMIT 160`
+  )
+    .bind(account.id)
+    .all<{ id: number; text: string }>();
+  if (rows.results.length === 0) return 0;
+  const sys =
+    "あなたはリプライの感情分類器。各リプが元の投稿に対して肯定的か中立か否定的かを判定する。" +
+    "称賛・共感・感謝・同意=pos／質問・単なる情報・無関係・判断不能=neu／皮肉・嘲笑・煽り・強い批判・怒り=neg。" +
+    'JSON配列だけを返す（前置き・説明・コードフェンス無し）: [{"i":番号,"s":"pos"|"neu"|"neg"}]';
+  let done = 0;
+  const BATCH = 40;
+  for (let i = 0; i < rows.results.length; i += BATCH) {
+    const chunk = rows.results.slice(i, i + BATCH);
+    const list = chunk.map((r, j) => `${j}: ${r.text.replace(/\s+/g, " ").slice(0, 160)}`).join("\n");
+    try {
+      const { text, usage } = await callClaude({
+        apiKey: claudeKey,
+        model: "claude-haiku-4-5", // 雑務は安いHaiku（判定はeffort/思考オフ必須）
+        noEffort: true,
+        thinkingMode: "disabled",
+        system: [{ text: sys }],
+        userText: list,
+        stream: false,
+        maxTokens: 1200,
+      });
+      await logClaudeUsage(env, account.id, "claude-haiku-4-5", usage, "reply_sentiment");
+      const arr = extractJson<Array<{ i: number; s: string }>>(text) ?? [];
+      for (const it of arr) {
+        const r = chunk[it?.i];
+        if (!r) continue;
+        const s = it.s === "pos" ? "pos" : it.s === "neg" ? "neg" : "neu";
+        await env.DB.prepare(`UPDATE replies SET sentiment = ? WHERE id = ?`).bind(s, r.id).run();
+        done++;
+      }
+    } catch (e) {
+      console.error(`[${account.id}] リプ感情判定バッチ失敗: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+  return done;
 }
 
 export async function collectReplies(
