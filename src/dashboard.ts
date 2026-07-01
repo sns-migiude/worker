@@ -1527,7 +1527,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     });
   }
   // ── 型の開発（指示/サンプル→AIがプロンプト→命名→トレーニング→採用・既存型の編集/再トレーニング）──
-  var NT_STEP="input", NT_MODE="describe", NT_NAME="", NT_PROMPT="", NT_ORIGIN="", NT_DRAFTS=[], NT_KEPT=[], NT_LIST=[];
+  var NT_STEP="input", NT_MODE="describe", NT_NAME="", NT_PROMPT="", NT_ORIGIN="", NT_DRAFTS=[], NT_KEPT=[], NT_REJECT=[], NT_LIST=[];
   var NT_MAX=0; // 到達済みの最遠ステップ（ここまでは前後どちらにも再生成せず移動できる）
   var NT_SEEN=[]; // これまで生成した本文（採用/不採用問わず）＝次バッチでネタ被りさせない対象
   var NT_PROMPT_BEFORE=""; // 仕上げ：改善前のプロンプト（改善後と見比べる用）
@@ -1548,7 +1548,7 @@ export const DASHBOARD_HTML = `<!doctype html>
       var ps=$("ntPattern"); if(ps) NT_PATTERN=ps.value;
       var im=$("ntImage"); if(im) NT_IMAGE_TYPE=im.value;
       if(NT_STEP==="input" && !(NT_ORIGIN||"").trim() && !NT_PROMPT){ localStorage.removeItem(ntKey()); return; }
-      localStorage.setItem(ntKey(), JSON.stringify({step:NT_STEP,max:NT_MAX,mode:NT_MODE,name:NT_NAME,prompt:NT_PROMPT,pattern:NT_PATTERN,imageType:NT_IMAGE_TYPE,pbefore:NT_PROMPT_BEFORE,diff:NT_DIFF,editId:NT_EDIT_ID,origin:NT_ORIGIN,drafts:NT_DRAFTS,kept:NT_KEPT,seen:NT_SEEN.slice(-60)}));
+      localStorage.setItem(ntKey(), JSON.stringify({step:NT_STEP,max:NT_MAX,mode:NT_MODE,name:NT_NAME,prompt:NT_PROMPT,pattern:NT_PATTERN,imageType:NT_IMAGE_TYPE,pbefore:NT_PROMPT_BEFORE,diff:NT_DIFF,editId:NT_EDIT_ID,origin:NT_ORIGIN,drafts:NT_DRAFTS,kept:NT_KEPT,reject:NT_REJECT.slice(-20),seen:NT_SEEN.slice(-60)}));
     }catch(e){}
   }
   function ntClearState(){ try{ localStorage.removeItem(ntKey()); }catch(e){} }
@@ -1567,12 +1567,12 @@ export const DASHBOARD_HTML = `<!doctype html>
   function ntRestore(){ try{ var s=localStorage.getItem(ntKey()); return s?JSON.parse(s):null; }catch(e){ return null; } }
   function ntCancel(){
     if(!confirm("作成中の内容を破棄しますか？\\n（保存した内容は消えます）")) return;
-    ntClearState(); NT_STEP="input"; NT_MAX=0; NT_NAME=""; NT_PROMPT=""; NT_PROMPT_BEFORE=""; NT_DIFF=""; NT_EDIT_ID=null; NT_DRAFTS=[]; NT_KEPT=[]; NT_SEEN=[]; NT_ORIGIN=""; ntRender(); msg("作成を中止しました。");
+    ntClearState(); NT_STEP="input"; NT_MAX=0; NT_NAME=""; NT_PROMPT=""; NT_PROMPT_BEFORE=""; NT_DIFF=""; NT_EDIT_ID=null; NT_DRAFTS=[]; NT_KEPT=[]; NT_SEEN=[]; NT_REJECT=[]; NT_ORIGIN=""; ntRender(); msg("作成を中止しました。");
   }
   function loadNewType(){
     var saved=ntRestore();
-    if(saved){ NT_STEP=saved.step||"input"; NT_MODE=saved.mode||"describe"; NT_NAME=saved.name||""; NT_PROMPT=saved.prompt||""; NT_PATTERN=saved.pattern||"single_short"; NT_IMAGE_TYPE=saved.imageType||"none"; NT_PROMPT_BEFORE=saved.pbefore||""; NT_DIFF=saved.diff||""; NT_EDIT_ID=(saved.editId!=null?saved.editId:null); NT_ORIGIN=saved.origin||""; NT_DRAFTS=saved.drafts||[]; NT_KEPT=saved.kept||[]; NT_SEEN=saved.seen||[]; NT_MAX=(saved.max!=null?saved.max:NT_ORDER[NT_STEP])||0; }
-    else { NT_STEP="input"; NT_MAX=0; NT_NAME=""; NT_PROMPT=""; NT_PATTERN="single_short"; NT_IMAGE_TYPE="none"; NT_PROMPT_BEFORE=""; NT_DIFF=""; NT_EDIT_ID=null; NT_DRAFTS=[]; NT_KEPT=[]; NT_SEEN=[]; NT_ORIGIN=""; }
+    if(saved){ NT_STEP=saved.step||"input"; NT_MODE=saved.mode||"describe"; NT_NAME=saved.name||""; NT_PROMPT=saved.prompt||""; NT_PATTERN=saved.pattern||"single_short"; NT_IMAGE_TYPE=saved.imageType||"none"; NT_PROMPT_BEFORE=saved.pbefore||""; NT_DIFF=saved.diff||""; NT_EDIT_ID=(saved.editId!=null?saved.editId:null); NT_ORIGIN=saved.origin||""; NT_DRAFTS=saved.drafts||[]; NT_KEPT=saved.kept||[]; NT_REJECT=saved.reject||[]; NT_SEEN=saved.seen||[]; NT_MAX=(saved.max!=null?saved.max:NT_ORDER[NT_STEP])||0; }
+    else { NT_STEP="input"; NT_MAX=0; NT_NAME=""; NT_PROMPT=""; NT_PATTERN="single_short"; NT_IMAGE_TYPE="none"; NT_PROMPT_BEFORE=""; NT_DIFF=""; NT_EDIT_ID=null; NT_DRAFTS=[]; NT_KEPT=[]; NT_SEEN=[]; NT_REJECT=[]; NT_ORIGIN=""; }
     Promise.all([
       api("GET","/api/types/list?account="+ACC),
       api("GET","/api/account/state?account="+ACC)
@@ -1587,7 +1587,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   function ntPickStruct(pattern, hasImage){ ntSyncText(); NT_PATTERN=pattern; if(hasImage){ if(NT_IMAGE_TYPE!=='oneliner'&&NT_IMAGE_TYPE!=='list') NT_IMAGE_TYPE='oneliner'; } else { NT_IMAGE_TYPE='none'; } ntPersist(); ntRender(); }
   function ntSetImg(it){ ntSyncText(); NT_IMAGE_TYPE=it; ntPersist(); ntRender(); }
   function ntStructLabel(){ var P={single_short:'短文・単発',single_long:'長文・単発',thread_short:'短文＋短文の連結',thread_long:'短文＋長文の連結',url:'🔗 URLに繋げる'}; var s=P[NT_PATTERN]||'短文・単発'; if(NT_IMAGE_TYPE!=='none') s+='＋画像（'+(NT_IMAGE_TYPE==='list'?'箇条書き':'一文')+'）'; return s; }
-  function ntReset(){ ntClearState(); NT_STEP="input"; NT_MAX=0; NT_NAME=""; NT_PROMPT=""; NT_PROMPT_BEFORE=""; NT_DIFF=""; NT_EDIT_ID=null; NT_DRAFTS=[]; NT_KEPT=[]; NT_SEEN=[]; NT_ORIGIN=""; ntRender(); }
+  function ntReset(){ ntClearState(); NT_STEP="input"; NT_MAX=0; NT_NAME=""; NT_PROMPT=""; NT_PROMPT_BEFORE=""; NT_DIFF=""; NT_EDIT_ID=null; NT_DRAFTS=[]; NT_KEPT=[]; NT_SEEN=[]; NT_REJECT=[]; NT_ORIGIN=""; ntRender(); }
   function ntRecordSeen(){ // 今表示中のサンプル本文を既出ネタに記録（次バッチで被らせない）
     (NT_DRAFTS||[]).forEach(function(d){ var b=(d.body||"").trim(); if(b) NT_SEEN.push(b); });
     if(NT_SEEN.length>80) NT_SEEN=NT_SEEN.slice(-80);
@@ -1710,7 +1710,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   function tsAdoptM(i){ var x=TS_MERGED[i]; if(!x||x.src!=="std") return; tsAdopt(x.key,i); }
   function tsUseM(i){ var x=TS_MERGED[i]; if(!x||x.src!=="hq") return;
     NT_EDIT_ID=null; NT_NAME=x.name||""; NT_PROMPT=x.desc||""; NT_ORIGIN="（型の検索から取り込み）"; NT_PATTERN="single_short"; NT_IMAGE_TYPE="none";
-    NT_PROMPT_BEFORE=""; NT_DIFF=""; NT_DRAFTS=[]; NT_KEPT=[]; NT_SEEN=[];
+    NT_PROMPT_BEFORE=""; NT_DIFF=""; NT_DRAFTS=[]; NT_KEPT=[]; NT_SEEN=[]; NT_REJECT=[];
     NT_STEP="prompt"; NT_MAX=NT_ORDER.prompt; ntPersist(); nav("newtype"); try{ window.scrollTo(0,0); }catch(e){}
   }
   // サンプルに付く画像カード（画像型のとき。連結は1ポスト目に付く）。
@@ -1843,7 +1843,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     var t=null; for(var i=0;i<TM_CUSTOM.length;i++){ if(TM_CUSTOM[i].id===id){ t=TM_CUSTOM[i]; break; } }
     if(!t) return;
     NT_EDIT_ID=id; NT_NAME=t.name||""; NT_PROMPT=t.prompt||""; NT_ORIGIN=t.origin||""; NT_PATTERN=t.pattern||"single_short"; NT_IMAGE_TYPE=t.image_type||"none";
-    NT_PROMPT_BEFORE=""; NT_DIFF=""; NT_DRAFTS=[]; NT_KEPT=[]; NT_SEEN=[];
+    NT_PROMPT_BEFORE=""; NT_DIFF=""; NT_DRAFTS=[]; NT_KEPT=[]; NT_SEEN=[]; NT_REJECT=[];
     NT_STEP="prompt"; NT_MAX=NT_ORDER.prompt;
     ntPersist(); nav("newtype"); try{ window.scrollTo(0,0); }catch(e){}
   }
@@ -1977,13 +1977,19 @@ export const DASHBOARD_HTML = `<!doctype html>
     if(d.kept){ if(d.keptIdx!=null && NT_KEPT[d.keptIdx]) NT_KEPT[d.keptIdx]={body:d.body, reply_text:d.reply_text}; return; }
     d.kept=true; d.keptIdx=NT_KEPT.length;
     NT_KEPT.push({body:d.body, reply_text:d.reply_text});
+    for(var k=NT_REJECT.length-1;k>=0;k--){ if(NT_REJECT[k]===d.body) NT_REJECT.splice(k,1); } // ★5/添削したら「避ける対象」からは外す
   }
   function ntSaveEdit(i){
     var b=$("nt-b-"+i); if(b) NT_DRAFTS[i].body=b.value;
     var r=$("nt-r-"+i); if(r) NT_DRAFTS[i].reply_text=r.value;
     NT_DRAFTS[i].editing=false; NT_DRAFTS[i].edited=true; ntKeep(i); ntRender();
   }
-  function ntRate(i,n){ NT_DRAFTS[i].rating=n; if(n>=5) ntKeep(i); ntRender(); }
+  function ntRate(i,n){ NT_DRAFTS[i].rating=n; if(n>=5){ ntKeep(i); } else if(n>=1){ ntReject(i); } ntRender(); }
+  function ntReject(i){ // ★1〜4＝避ける方向として蓄積（次の生成で似せない・繰り返さない）
+    var d=NT_DRAFTS[i]; if(!d||!d.body) return;
+    for(var k=0;k<NT_REJECT.length;k++){ if(NT_REJECT[k]===d.body) return; }
+    NT_REJECT.push(d.body); if(NT_REJECT.length>20) NT_REJECT=NT_REJECT.slice(-20);
+  }
   function ntDraftPrompt(){
     var t=$("ntText")?$("ntText").value.trim():""; if(!t){ msg("イメージか参考ポストを入れてください。",false); return; }
     NT_ORIGIN=t; if($("ntBody")) $("ntBody").innerHTML=genWaitCard();
@@ -2005,13 +2011,14 @@ export const DASHBOARD_HTML = `<!doctype html>
   }
   function ntNormDrafts(arr){ return (arr||[]).map(function(d){ return {body:d.body,reply_text:d.reply_text,hook:d.hook,rating:0,editing:false,edited:false,kept:false}; }); }
   function ntKeptExamples(){ return NT_KEPT.map(function(d){ return d.body+(d.reply_text?("\\n→ "+d.reply_text):""); }); }
+  function ntRejectExamples(){ return NT_REJECT.slice(-8); }
   function ntTrain(){ // プロンプト確認→初回トレーニング（採用カウントをリセット）
     NT_NAME=($("ntName")&&$("ntName").value.trim())||NT_NAME;
     if($("ntPrompt")) NT_PROMPT=$("ntPrompt").value;
     if($("ntPattern")) NT_PATTERN=$("ntPattern").value;
     if(!(NT_PROMPT||"").trim()){ msg("プロンプトが空です。",false); return; }
     if(NT_KEPT.length && !confirm("サンプルを作り直すと、これまでの採用 "+NT_KEPT.length+"件はリセットされます。よろしいですか？\\n（そのまま続きをやるなら「トレーニングに戻る（そのまま）」を）")) return;
-    NT_KEPT=[]; NT_SEEN=[]; if($("ntBody")) $("ntBody").innerHTML=genWaitCard(); // 初回は既出ネタもリセット
+    NT_KEPT=[]; NT_SEEN=[]; NT_REJECT=[]; if($("ntBody")) $("ntBody").innerHTML=genWaitCard(); // 初回は既出ネタもリセット
     api("POST","/api/types/train",{account:ACC,prompt:NT_PROMPT,pattern:NT_PATTERN}).then(function(r){
       if(r.body&&r.body.ok){ NT_DRAFTS=ntNormDrafts(r.body.drafts); ntRecordSeen(); NT_STEP="training"; ntReach("training"); ntRender(); }
       else { msg((r.body&&r.body.error)||"サンプルを作れませんでした。",false); NT_STEP="prompt"; ntRender(); }
@@ -2020,7 +2027,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   function ntNextBatch(){ // 次の5本（既出ネタを避ける＋採用例＋追加指示を反映して、より良いサンプルに）
     var fb=$("ntFeedback2")?$("ntFeedback2").value.trim():"";
     if($("ntBody")) $("ntBody").innerHTML=genWaitCard();
-    api("POST","/api/types/train",{account:ACC,prompt:NT_PROMPT,pattern:NT_PATTERN,feedback:fb,examples:ntKeptExamples(),avoid:NT_SEEN.slice(-60)}).then(function(r){
+    api("POST","/api/types/train",{account:ACC,prompt:NT_PROMPT,pattern:NT_PATTERN,feedback:fb,examples:ntKeptExamples(),reject:ntRejectExamples(),avoid:NT_SEEN.slice(-60)}).then(function(r){
       if(r.body&&r.body.ok){ NT_DRAFTS=ntNormDrafts(r.body.drafts); ntRecordSeen(); ntRender(); }
       else { msg((r.body&&r.body.error)||"作れませんでした。",false); ntRender(); }
     });
@@ -2051,7 +2058,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     if($("ntPrompt")) NT_PROMPT=$("ntPrompt").value;
     if($("ntPattern")) NT_PATTERN=$("ntPattern").value;
     if($("ntBody")) $("ntBody").innerHTML=genWaitCard();
-    api("POST","/api/types/train",{account:ACC,prompt:NT_PROMPT,pattern:NT_PATTERN,examples:ntKeptExamples(),avoid:NT_SEEN.slice(-60)}).then(function(r){
+    api("POST","/api/types/train",{account:ACC,prompt:NT_PROMPT,pattern:NT_PATTERN,examples:ntKeptExamples(),reject:ntRejectExamples(),avoid:NT_SEEN.slice(-60)}).then(function(r){
       if(r.body&&r.body.ok){ NT_DRAFTS=ntNormDrafts(r.body.drafts); ntRecordSeen(); NT_STEP="training"; ntRender(); }
       else { msg((r.body&&r.body.error)||"作れませんでした。",false); NT_STEP="finish"; ntRender(); }
     });
@@ -2070,7 +2077,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     if(keep&&NT_KEPT.length){ payload.keep_posts=NT_KEPT.map(function(d){ return {body:d.body,reply_text:d.reply_text}; }); }
     if($("ntBody")) $("ntBody").innerHTML=genWaitCard(editing?"更新しています…":"保存しています…");
     api("POST","/api/types/save",payload).then(function(r){
-      if(r.body&&r.body.ok){ var nm=NT_NAME, up=r.body.updated; ntClearState(); NT_STEP="input"; NT_MAX=0; NT_NAME=""; NT_PROMPT=""; NT_PROMPT_BEFORE=""; NT_DIFF=""; NT_EDIT_ID=null; NT_DRAFTS=[]; NT_KEPT=[]; NT_SEEN=[]; NT_ORIGIN=""; msg("型「"+nm+"」を"+(up?"更新":"採用")+"しました。"+(r.body.kept?("採用サンプル"+r.body.kept+"本を承認＆添削に残しました。"):"")); refreshBadges(); loadNewType(); }
+      if(r.body&&r.body.ok){ var nm=NT_NAME, up=r.body.updated; ntClearState(); NT_STEP="input"; NT_MAX=0; NT_NAME=""; NT_PROMPT=""; NT_PROMPT_BEFORE=""; NT_DIFF=""; NT_EDIT_ID=null; NT_DRAFTS=[]; NT_KEPT=[]; NT_SEEN=[]; NT_REJECT=[]; NT_ORIGIN=""; msg("型「"+nm+"」を"+(up?"更新":"採用")+"しました。"+(r.body.kept?("採用サンプル"+r.body.kept+"本を承認＆添削に残しました。"):"")); refreshBadges(); loadNewType(); }
       else { msg((r.body&&r.body.error)||"保存に失敗しました。",false); NT_STEP="finish"; ntRender(); }
     });
   }
@@ -2078,7 +2085,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     var t=null; for(var i=0;i<NT_LIST.length;i++){ if(NT_LIST[i].id===id){ t=NT_LIST[i]; break; } }
     if(!t) return;
     NT_EDIT_ID=id; NT_NAME=t.name||""; NT_PROMPT=t.prompt||""; NT_ORIGIN=t.origin||""; NT_PATTERN=t.pattern||"single_short"; NT_IMAGE_TYPE=t.image_type||"none";
-    NT_PROMPT_BEFORE=""; NT_DIFF=""; NT_DRAFTS=[]; NT_KEPT=[]; NT_SEEN=[];
+    NT_PROMPT_BEFORE=""; NT_DIFF=""; NT_DRAFTS=[]; NT_KEPT=[]; NT_SEEN=[]; NT_REJECT=[];
     NT_STEP="prompt"; NT_MAX=NT_ORDER.prompt; ntRender();
     try{ window.scrollTo(0,0); }catch(e){}
   }
@@ -2090,7 +2097,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     if(!(NT_NAME||"").trim()||!(NT_PROMPT||"").trim()){ msg("名前とプロンプトを入れてください。",false); return; }
     if($("ntBody")) $("ntBody").innerHTML=genWaitCard("保存しています…");
     api("POST","/api/types/save",{account:ACC,id:NT_EDIT_ID,name:NT_NAME,prompt:NT_PROMPT,origin:NT_ORIGIN,pattern:NT_PATTERN,image_type:NT_IMAGE_TYPE}).then(function(r){
-      if(r.body&&r.body.ok){ var nm=NT_NAME; ntClearState(); NT_STEP="input"; NT_MAX=0; NT_NAME=""; NT_PROMPT=""; NT_PROMPT_BEFORE=""; NT_DIFF=""; NT_EDIT_ID=null; NT_DRAFTS=[]; NT_KEPT=[]; NT_SEEN=[]; NT_ORIGIN=""; msg("型「"+nm+"」を更新しました。"); refreshBadges(); loadNewType(); }
+      if(r.body&&r.body.ok){ var nm=NT_NAME; ntClearState(); NT_STEP="input"; NT_MAX=0; NT_NAME=""; NT_PROMPT=""; NT_PROMPT_BEFORE=""; NT_DIFF=""; NT_EDIT_ID=null; NT_DRAFTS=[]; NT_KEPT=[]; NT_SEEN=[]; NT_REJECT=[]; NT_ORIGIN=""; msg("型「"+nm+"」を更新しました。"); refreshBadges(); loadNewType(); }
       else { msg((r.body&&r.body.error)||"更新に失敗しました。",false); ntRender(); }
     });
   }

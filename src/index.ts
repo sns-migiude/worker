@@ -2103,13 +2103,15 @@ export default {
     // ② トレーニング：この型のプロンプトで5本作る（DBには入れず返すだけ。添削/追加指示で再生成）。
     if (req.method === "POST" && url.pathname === "/api/types/train") {
       const b = (await req.json().catch(() => null)) as {
-        account?: string; prompt?: string; pattern?: string; feedback?: string; examples?: string[]; avoid?: string[];
+        account?: string; prompt?: string; pattern?: string; feedback?: string; examples?: string[]; reject?: string[]; avoid?: string[];
       } | null;
       if (!b?.account || !b.prompt) return json({ error: "account と prompt は必須" }, 400);
       const trainPat = b.pattern && PATTERNS[b.pattern] ? b.pattern : undefined;
       let instr = trainPat === "url" ? await urlSampleInstr(env, b.account, b.prompt) : b.prompt;
       if (b.feedback && b.feedback.trim()) instr += `\n# 追加指示\n${b.feedback.trim().slice(0, 2000)}`;
       if (Array.isArray(b.examples) && b.examples.length) instr += `\n# 理想に近い例（この方向で書く）\n${b.examples.slice(0, 5).join("\n---\n").slice(0, 4000)}`;
+      // イマイチ評価（★1〜4）＝避ける方向。似せない・繰り返さないための負のフィードバック（トレーニング中に学習が進む）。
+      if (Array.isArray(b.reject) && b.reject.length) instr += `\n# 避けたい例（この切り口・トーン・言い回しは低評価だった。似せない・別の方向で書く）\n${b.reject.slice(0, 8).join("\n---\n").slice(0, 3000)}`;
       // 既出サンプル＝ネタ被り防止に渡す（postsに未保存のため明示）。件数・長さは安全のため制限。
       const avoidList = Array.isArray(b.avoid)
         ? b.avoid.filter((x): x is string => typeof x === "string" && x.trim().length > 0).slice(0, 60).map((x) => x.slice(0, 400))
