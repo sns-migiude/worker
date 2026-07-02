@@ -865,7 +865,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   }
   function $(id){ return document.getElementById(id); }
   function token(){ return localStorage.getItem("sns_token") || ""; }
-  function esc(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function esc(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
   function comma(n){ try{ return Number(n).toLocaleString("ja-JP"); }catch(e){ return n; } }
   function msg(t, isOk){ var m=$("msg"); m.textContent=t||""; m.className = "msg " + (isOk===false?"ng":"ok"); }
 

@@ -66,7 +66,7 @@ import { DASHBOARD_HTML } from "./dashboard";
 
 // ── このワーカーのコード版（2桁小数・0.01刻み 例 1.00→1.01→…→1.99→2.00）。本部の latest_code_version と数値で比べて「更新あり」を出す。 ──
 // リリース手順：公開リポ更新時にここを +0.01（大きい更新は +1.00 等）→ 本部コンソールで「最新版」を同じ数字に。
-const CODE_VERSION = "1.07";
+const CODE_VERSION = "1.08";
 
 const MAX_RETRY = 3;
 const USDJPY_FALLBACK = 155; // 取得できないときの概算レート
@@ -2133,7 +2133,8 @@ export default {
         keep_posts?: Array<{ body?: string; reply_text?: string }>;
       } | null;
       if (!b?.account) return json({ error: "account は必須" }, 400);
-      const name = String(b.name ?? "").trim().slice(0, 40);
+      // 型名は「型の管理」のonclick/onchange引数に出るため、XSSになりうる文字（引用符・山括弧・バックスラッシュ・制御文字）を除去。日本語はそのまま。
+      const name = String(b.name ?? "").replace(/["'<>\\\x00-\x1f]/g, "").trim().slice(0, 40);
       const prompt = String(b.prompt ?? "").trim().slice(0, 1200);
       if (!name || !prompt) return json({ ok: false, error: "名前とプロンプトが必要です。" }, 400);
       const pattern = b.pattern && PATTERNS[b.pattern] ? b.pattern : "single_short";
