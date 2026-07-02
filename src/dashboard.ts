@@ -2138,7 +2138,8 @@ export const DASHBOARD_HTML = `<!doctype html>
   }
   var ANALYSIS_DAYS=0; // 集計期間（日数。0=全期間）
   var ANALYSIS_CARDS=[]; var ANALYSIS_FOCUS=null; var CARD_OFFSET=0; // 改善カード（常時3枚・手動ローテ）
-  function renderCards(){
+  // ※名前を renderCards にしない：画像カード設定の renderCards（後方定義）と衝突して上書きされ、指針カードが描画されなくなる（1.13で修正済みの実バグ）。
+  function renderHintCards(){
     var el=$("hintBody"); if(!el) return;
     var html="";
     if(ANALYSIS_FOCUS){ var f=ANALYSIS_FOCUS; html+="<div style='background:var(--accent-bg);border-radius:var(--radius-sm);padding:8px 10px;margin-bottom:8px;font-size:13px'>🎯 いま「<b>"+esc(f.label||f.value)+"</b>」にフォーカス中。<b>次の自動補充サイクル</b>から多めに作ります。　<a onclick='clearFocus()' style='cursor:pointer;color:var(--accent-strong);font-weight:600'>自動に戻す</a></div>"; }
@@ -2159,7 +2160,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     var btn=$("aiCardBtn"); if(btn){ btn.disabled=true; btn.textContent="AIが考え中…"; }
     api("POST","/api/account/suggest-cards",{account:ACC}).then(function(r){
       if(btn){ btn.disabled=false; btn.textContent="✨ AIに別の指針を考えてもらう"; }
-      if(r.body&&r.body.ok&&r.body.cards&&r.body.cards.length){ ANALYSIS_CARDS=r.body.cards; CARD_OFFSET=0; renderCards(); }
+      if(r.body&&r.body.ok&&r.body.cards&&r.body.cards.length){ ANALYSIS_CARDS=r.body.cards; CARD_OFFSET=0; renderHintCards(); }
       else { msg((r.body&&r.body.error)||"提案を作れませんでした。",false); }
     });
   }
@@ -2416,7 +2417,7 @@ export const DASHBOARD_HTML = `<!doctype html>
         + "<div id='rankBody'></div>"
         + "<div class='note' style='margin-top:8px'>列の見出しをタップで並び替え（もう一度で昇順⇄降順）。反応率＝(いいね＋リポスト＋返信)÷インプの平均。型別・時間帯別は平均値です。</div></div>";
       h+=learnedCard(b.learned);
-      if($("analysisBody")){ $("analysisBody").innerHTML=h; renderCards(); renderRankTable(); } // hintBody/rankBody生成後に描画
+      if($("analysisBody")){ $("analysisBody").innerHTML=h; renderHintCards(); renderRankTable(); } // hintBody/rankBody生成後に描画
     });
   }
   // ランキング：3カテゴリ（型別/ポスト別/時間帯別）×全指標の並び替え自由テーブル。
