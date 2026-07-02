@@ -1439,9 +1439,14 @@ export const DASHBOARD_HTML = `<!doctype html>
   function startScreen(){ var h=(location.hash||"").replace(/^#/,""); return HASH_SCREENS.indexOf(h)>=0 ? h : "home"; }
   window.addEventListener("hashchange", function(){ if(!$("app")||$("app").classList.contains("hidden")) return; var h=(location.hash||"").replace(/^#/,""); if(HASH_SCREENS.indexOf(h)>=0) nav(h); });
   // ── クリック→CV：誘導先URL別の クリック(X)・CV(計測ピクセル)・CVR・売上 ──
+  // タグは2種類：①入口タグ（LP）＝sr（どのリンク経由かの印）をブラウザに保存するだけ・計測しない
+  //             ②完了タグ（サンクスページ）＝URLか保存済みの印を読んで /cv に通知（印は7日で失効）
+  // LP→サンクスはUTAGE等がURLパラメータを引き継がないため、同一ドメインのlocalStorageで橋渡しする。
+  function cvSnippetEntry(){
+    return "<script>(function(){try{var s=new URLSearchParams(location.search).get('sr');if(s){localStorage.setItem('sns_sr',s);localStorage.setItem('sns_sr_t',String(Date.now()));}}catch(e){}})();<\\/script>";
+  }
   function cvSnippet(){
-    // 誘導先の完了ページに貼るタグ。sr（投稿リンクに付く印）をURL/localStorageから拾って /cv に通知。
-    return "<script>(function(){try{var p=new URLSearchParams(location.search),s=p.get('sr')||localStorage.getItem('sns_sr');if(p.get('sr'))localStorage.setItem('sns_sr',p.get('sr'));if(s)new Image().src='"+location.origin+"/cv?a="+encodeURIComponent(ACC)+"&sr='+encodeURIComponent(s);}catch(e){}})();<\\/script>";
+    return "<script>(function(){try{var q=new URLSearchParams(location.search),u=q.get('sr'),s=u,t=0;if(!s){s=localStorage.getItem('sns_sr')||'';t=Number(localStorage.getItem('sns_sr_t')||0);if(s&&t&&(Date.now()-t)>604800000)s='';}if(u){localStorage.setItem('sns_sr',u);localStorage.setItem('sns_sr_t',String(Date.now()));}if(s)new Image().src='"+location.origin+"/cv?a="+encodeURIComponent(ACC)+"&sr='+encodeURIComponent(s);}catch(e){}})();<\\/script>";
   }
   function cvStat(label,val){
     return "<div style='min-width:64px'><div class='note' style='font-size:11px'>"+esc(label)+"</div><div style='font-size:17px;font-weight:600'>"+esc(String(val))+"</div></div>";
@@ -1512,16 +1517,19 @@ export const DASHBOARD_HTML = `<!doctype html>
         });
         h+="<div class='note' style='margin-top:2px'>クリック＝計測リンクのクリック数／CV＝計測タグの記録／CVR＝CV÷クリック／売上＝単価×CV。連携した今から少しずつ溜まります（過去には遡れません）。</div>";
       }
-      // CV計測タグ（全LP共通・1回貼れば基本不要）→ 普段は畳んでおく
-      h+="<details class='card' style='margin-top:14px'><summary style='cursor:pointer;font-weight:600'>⚙️ CV計測タグの設置（最初に1回だけ・全LP共通）</summary>";
-      h+="<div class='note' style='margin:8px 0'>このタグは<b>全てのLPで共通の1種類</b>です（違うLPへの誘導でも同じものを使います）。どのLP経由かは計測リンクが自動で見分けるので、LPごとに作り分ける必要はありません。登録・購入が<b>完了する画面（サンクスページ）の&lt;head&gt;内</b>に貼れば、そこに着いた人がCVとして記録されます。<b>一度貼れば基本は触りません。</b></div>";
+      // CV計測タグ（入口＋完了の2種類・1回貼れば基本不要）→ 普段は畳んでおく
+      h+="<details class='card' style='margin-top:14px'><summary style='cursor:pointer;font-weight:600'>⚙️ CV計測タグの設置（2種類・最初に1回だけ）</summary>";
+      h+="<div class='note' style='margin:8px 0'>タグは<b>2種類セット</b>です。どのLPへの誘導でも<b>同じタグ</b>を使います（計測リンクが経由を自動で見分けるので、LPごとの作り分けは不要）。<b>一度貼れば基本は触りません。</b></div>";
+      h+="<div class='note' style='margin:8px 0 2px'><b>① 入口タグ</b>：計測リンクの<b>着地ページ（LP）の&lt;head&gt;内</b>に貼る。「どのリンクから来たか」の印をブラウザに覚えさせるだけで、<b>計測はしません</b>。着地ページが複数あるなら全部に（全ページ共通のヘッダーに貼ってもOK・害はありません）。</div>";
+      h+="<textarea readonly onclick='this.select()' style='width:100%;min-height:48px;font-family:monospace;font-size:12px'>"+esc(cvSnippetEntry())+"</textarea>";
+      h+="<div class='note' style='margin:10px 0 2px'><b>② 完了タグ</b>：登録・購入が<b>完了する画面（サンクスページ）の&lt;head&gt;内</b>に貼る。ここに着いた人が<b>CVとして記録</b>されます（①で覚えた印は7日で失効）。</div>";
       h+="<textarea readonly onclick='this.select()' style='width:100%;min-height:60px;font-family:monospace;font-size:12px'>"+esc(cvSnippet())+"</textarea>";
-      // 設置チェック（サンクスページURLを入れてタグ有無を自動判定）
-      h+="<div style='margin-top:10px;border-top:1px solid var(--border);padding-top:10px'><div class='note' style='margin-bottom:4px'><b>✅ ちゃんと貼れたかチェック</b>（サンクスページのURLを入れて確認）</div>";
-      h+="<div class='row' style='gap:6px;flex-wrap:nowrap'><input id='tagCheckUrl' type='url' placeholder='https://…/thanks（完了ページのURL）' style='flex:1'><button class='soft' id='tagCheckBtn' onclick='checkTag()'>チェック</button></div>";
+      // 設置チェック（LP/サンクスページのURLを入れてタグ有無を自動判定）
+      h+="<div style='margin-top:10px;border-top:1px solid var(--border);padding-top:10px'><div class='note' style='margin-bottom:4px'><b>✅ ちゃんと貼れたかチェック</b>（LPまたはサンクスページのURLを入れて確認）</div>";
+      h+="<div class='row' style='gap:6px;flex-wrap:nowrap'><input id='tagCheckUrl' type='url' placeholder='https://…（LPか完了ページのURL）' style='flex:1'><button class='soft' id='tagCheckBtn' onclick='checkTag()'>チェック</button></div>";
       h+="<div class='note' id='tagCheckResult' style='margin-top:6px'></div></div>";
-      h+="<div class='note' style='margin-top:8px'><b>📍 どこに貼る？</b><br>計測リンク →（note等を経由しても可）→ <b>申込フォームのあるLP</b> → <b>サンクスページ</b>、の最後の<b>サンクスページ</b>に貼ります。LPごとにサンクスページが分かれているなら、<b>各サンクスページに同じタグ</b>を貼ってください（中身は全部同じ）。売上は各URLの<b>単価</b>から自動計算（タグ側の金額指定は不要）。</div>";
-      h+="<div class='note' style='margin-top:8px;border-top:1px solid var(--border);padding-top:8px'><b>⚠️ 途中でドメインが変わるとCVは結びつきません</b><br>計測リンク→note→<b>別ドメインのLP</b>→サンクスページ…のように<b>ドメインをまたぐ</b>と「誰のクリックか」の印が引き継げずCVが0になります（<b>クリック数は常に取れます</b>）。確実に取るには<b>LPとサンクスページを同じドメイン</b>に。どうしてもまたぐ場合は入口と完了ページの両方に貼ると拾える確率が上がります。</div>";
+      h+="<div class='note' style='margin-top:8px'><b>📍 どこに貼る？</b><br>計測リンク → <b>LP（①入口タグ）</b> → <b>サンクスページ（②完了タグ）</b>。LPやサンクスページが複数あるなら、それぞれに同じものを貼ってください（中身は全部同じ）。売上は各URLの<b>単価</b>から自動計算（タグ側の金額指定は不要）。</div>";
+      h+="<div class='note' style='margin-top:8px;border-top:1px solid var(--border);padding-top:8px'><b>⚠️ 2つの決まりごと</b><br>・<b>LPとサンクスページは同じドメイン</b>に（違うと印が引き継げずCVが0になります。クリック数は常に取れます）。<br>・note等の<b>タグを貼れないページを間に挟む</b>場合は、その記事内のリンクも<b>計測リンク</b>にしてください（印が途切れず、note→LPの数も取れます）。</div>";
       h+="</details>";
       if(el) el.innerHTML=h;
     });

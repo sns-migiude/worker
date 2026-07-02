@@ -66,7 +66,7 @@ import { DASHBOARD_HTML } from "./dashboard";
 
 // ── このワーカーのコード版（2桁小数・0.01刻み 例 1.00→1.01→…→1.99→2.00）。本部の latest_code_version と数値で比べて「更新あり」を出す。 ──
 // リリース手順：公開リポ更新時にここを +0.01（大きい更新は +1.00 等）→ 本部コンソールで「最新版」を同じ数字に。
-const CODE_VERSION = "1.10";
+const CODE_VERSION = "1.11";
 
 const MAX_RETRY = 3;
 const USDJPY_FALLBACK = 155; // 取得できないときの概算レート
@@ -1598,20 +1598,24 @@ export default {
         const m = fe instanceof Error ? fe.message : String(fe);
         return json({ ok: true, found: false, reachable: false, hint: `ページに接続できませんでした（${m.slice(0, 80)}）。ログイン必須のページ等は自動チェックできません。` }, 200);
       }
-      // 署名：このサービス由来の /cv?a=<account> を含むか（snippetがlocation.origin+"/cv?a="+ACCで固定生成するため確実）。
+      // 署名：完了タグ＝このサービス由来の /cv?a=<account> を含む（snippetがlocation.origin+"/cv?a="+ACCで固定生成するため確実）。
+      //       入口タグ＝/cv を含まず localStorageキー sns_sr だけを含む。
       const origin = (env.PUBLIC_URL || new URL(req.url).origin).replace(/\/+$/, "");
       const sig1 = `${origin}/cv?a=${b.account}`;
       const sig2 = `/cv?a=${b.account}`; // origin違い（プロキシ等）でも拾えるよう緩めの署名
-      const sig3 = "sns_sr"; // localStorageキー（タグの一部）
-      const found = html.includes(sig1) || html.includes(sig2) || html.includes(sig3);
+      const foundCv = html.includes(sig1) || html.includes(sig2);
+      const foundEntry = !foundCv && html.includes("sns_sr"); // 完了タグにも sns_sr が含まれるため、完了タグ無しのときだけ入口タグと判定
+      const found = foundCv || foundEntry;
       return json({
         ok: true,
         found,
         reachable: true,
         status,
-        hint: found
-          ? "タグを確認できました。このページに着いた人はCVとして記録されます。"
-          : "このページにタグが見つかりませんでした。①URLがサンクスページ（完了画面）か ②タグを<head>に貼れているか を確認してください。※タグマネージャ等でJS経由設置している場合は、この自動チェックでは検出できないことがあります（その場合は実際に1件テストして確認）。",
+        hint: foundCv
+          ? "完了タグを確認できました。このページに着いた人はCVとして記録されます。（入口タグはLP側に貼ってください）"
+          : foundEntry
+            ? "入口タグを確認できました。ここが計測リンクの着地ページ（LP）ならOKです。もしここがサンクスページ（完了画面）なら、貼るのは「②完了タグ」の方です（CVの記録は完了タグだけが行います）。"
+            : "このページにタグが見つかりませんでした。LPなら①入口タグ、サンクスページ（完了画面）なら②完了タグを<head>に貼ってください。※タグマネージャ等でJS経由設置している場合は、この自動チェックでは検出できないことがあります（その場合は実際に1件テストして確認）。",
       });
     }
     // 飛ばし先URLの登録（複数）。リスト全体を受け取って上書き保存。
