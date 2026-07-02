@@ -991,7 +991,10 @@ export const DASHBOARD_HTML = `<!doctype html>
     h+="<p class='lead'>招待コードを入れて、利用のお約束に同意したら始められます。</p>";
     h+="<div class='card'><label style='display:block;font-weight:600'>招待コード</label>";
     h+="<input id='gInvite' placeholder='例: SNS-AB12-CD34' style='width:100%;margin-top:6px;text-transform:uppercase'>";
-    h+="<div class='note' style='margin-top:4px'>運営から受け取ったコードを入れてください。</div></div>";
+    h+="<div class='note' style='margin-top:4px'>メールで受け取った招待コードを入れてください。</div>";
+    // 招待コード無しでインストールした人の受け皿（公開リポから直接デプロイしたケース）。運営の招待リンクへ誘導する。
+    h+="<div class='note' style='margin-top:10px;border-top:1px solid var(--border);padding-top:10px'><b>招待コードをお持ちでない方へ</b><br>SNSの右腕は<b>完全招待制</b>です。コードが無いとこの先には進めませんが、インストール済みのこの環境はそのまま使えます。下の<b>招待リンク</b>からお名前とメールを登録すると、<b>あなた専用の招待コードがメールで届きます</b>。届いたらこの画面に戻って入力すれば始められます。<br>";
+    h+="<a href='https://join.sns-migiude.com/?code=SNS-6N7R-CJT4' target='_blank' rel='noopener' style='display:inline-block;margin-top:8px;font-weight:600;text-decoration:underline;word-break:break-all'>https://join.sns-migiude.com/?code=SNS-6N7R-CJT4</a></div></div>";
     h+="<div class='card'><div style='font-weight:600;margin-bottom:6px'>利用のお約束（要点）</div>";
     h+="<div class='note' style='line-height:1.95;max-height:240px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:10px'>";
     h+="・<b>あなたのAPIキー（X / Claude）はあなたのもの</b>です。運営は預かりません（あなたのCloudflareに暗号保管）。<br>";
